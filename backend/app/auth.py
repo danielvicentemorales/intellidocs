@@ -12,7 +12,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     email = payload.email.lower().strip()
 
-    # ✅ AQUI MISMO
     if len(payload.password.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="Password too long (max 72 bytes)")
 

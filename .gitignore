@@ -1,6 +1,17 @@
-__pycache__/
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# General
 .env
-.venv/
-node_modules/
 storage/
-*.sqlite3
