@@ -18,3 +18,5 @@ env/
 
 # Claude Code
 .claude/
+# Uploads directory
+uploads/
