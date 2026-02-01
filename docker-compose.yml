@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: intellidocs_db
+    environment:
+      POSTGRES_USER: intellidocs
+      POSTGRES_PASSWORD: intellidocs
+      POSTGRES_DB: intellidocs
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
