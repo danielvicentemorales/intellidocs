@@ -1,4 +1,7 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from .db import Base, engine
 from . import models  # noqa: F401
