@@ -135,6 +135,12 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
+    # Delete physical file
+    file_path = os.path.join(UPLOAD_DIR, f"{current_user.id}_{document.filename}")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Delete from database
     db.delete(document)
     db.commit()
     return None
