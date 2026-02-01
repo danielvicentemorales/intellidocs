@@ -7,7 +7,7 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-
+    
     class Config:
         from_attributes = True
 
@@ -28,3 +28,7 @@ class DocumentOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+# Document update schema (only filename can be changed)
+class DocumentUpdate(BaseModel):
+    filename: str
