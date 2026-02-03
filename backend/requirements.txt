@@ -24,3 +24,7 @@ starlette==0.50.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.40.0
+# Chat dependencies (OpenAI)
+openai>=1.0.0
+pypdf>=4.0.0
+python-docx>=1.0.0
