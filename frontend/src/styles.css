@@ -14,13 +14,14 @@
 *{ box-sizing:border-box; }
 html,body,#root{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
 body{
+  overflow: hidden;
   color: var(--text);
   background:
     radial-gradient(1200px 700px at 15% 10%, rgba(124,58,237,0.25), transparent 55%),
     radial-gradient(900px 600px at 85% 20%, rgba(34,197,94,0.10), transparent 55%),
     radial-gradient(1000px 800px at 50% 95%, rgba(59,130,246,0.12), transparent 60%),
     var(--bg);
-}
+  }
 
 /* --- FIX: make the app use full width/height (removes Vite #root max-width) --- */
 html, body, #root {
@@ -35,7 +36,7 @@ html, body, #root {
 
 /* Layout */
 .shell{
-  height:100%;
+  height: calc(100vh - 32px);
   display:grid;
   grid-template-columns: 360px 1fr;
   gap: 16px;
@@ -50,6 +51,11 @@ html, body, #root {
   overflow:hidden;
   backdrop-filter: blur(10px);
 }
+
+/* FIX scroll */
+.shell { min-height: 0; }
+.left, .right { min-height: 0; }
+.chat { min-height: 0; overflow-y: auto; }
 
 /* Left */
 .left{
