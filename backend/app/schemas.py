@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -7,7 +8,7 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-    
+
     class Config:
         from_attributes = True
 
@@ -24,11 +25,13 @@ class DocumentOut(BaseModel):
     file_size: int
     status: str
     uploaded_at: str
-    user_id: int
-    
+
+    # soporta guest
+    user_id: Optional[int] = None
+    guest_id: Optional[str] = None
+
     class Config:
         from_attributes = True
 
-# Document update schema (only filename can be changed)
 class DocumentUpdate(BaseModel):
     filename: str
