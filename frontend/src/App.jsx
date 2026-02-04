@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 import "./styles.css";
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LandingPage from './components/LandingPage';
-import AuthForm from './components/AuthForm';
-import GuestBanner from './components/GuestBanner';
-import MainApp from './components/MainApp';
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import LandingPage from "./components/LandingPage";
+import AuthForm from "./components/AuthForm";
+import GuestBanner from "./components/GuestBanner";
+import MainApp from "./components/MainApp";
 
 function AppContent() {
   const { user, isGuest, loading, logout } = useAuth();
-  const [currentPage, setCurrentPage] = useState('landing');
+  const [currentPage, setCurrentPage] = useState("landing");
 
   if (loading) {
     return (
