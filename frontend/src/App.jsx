@@ -22,34 +22,35 @@ function AppContent() {
   if (user || isGuest) {
     return (
       <div className="appWrapper">
-        <GuestBanner onUpgrade={() => {
-          logout();
-          setCurrentPage('auth');
-        }} />
+        {isGuest && (
+          <GuestBanner
+            onUpgrade={() => {
+              logout();
+              setCurrentPage("auth");
+            }}
+          />
+        )}
+
         <MainApp
           onLogout={() => {
             logout();
-            setCurrentPage('landing');
+            setCurrentPage("landing");
           }}
         />
       </div>
     );
   }
 
-  if (currentPage === 'auth') {
+  if (currentPage === "auth") {
     return (
       <AuthForm
-        onBack={() => setCurrentPage('landing')}
-        onSuccess={() => setCurrentPage('app')}
+        onBack={() => setCurrentPage("landing")}
+        onSuccess={() => setCurrentPage("app")}
       />
     );
   }
 
-  return (
-    <LandingPage
-      onNavigateToAuth={() => setCurrentPage('auth')}
-    />
-  );
+  return <LandingPage onNavigateToAuth={() => setCurrentPage("auth")} />;
 }
 
 export default function App() {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from "../contexts/AuthContext";
 
 const API_BASE = "http://localhost:8000";
 const HEALTH_URL = `${API_BASE}/health`;
@@ -10,15 +10,11 @@ const CHAT_URL = `${API_BASE}/chat`;
 export default function MainApp({ onLogout }) {
   const {
     isGuest,
-    isAuthenticated,
     user,
     getToken,
-    guestData,
     guestLimits,
-    addGuestDocument,
-    removeGuestDocument,
-    updateGuestDocument,
-    incrementGuestQuestions
+    incrementGuestQuestions,
+    setGuestDocsCount, // (viene del AuthContext)
   } = useAuth();
 
   const [uploadedDocs, setUploadedDocs] = useState([]);
@@ -29,7 +25,7 @@ export default function MainApp({ onLogout }) {
   const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
   const [apiStatus, setApiStatus] = useState({ ok: null, msg: "Checking API..." });
 
-  // Estado para renombrar
+  // Rename modal
   const [renamingDoc, setRenamingDoc] = useState(null);
   const [newName, setNewName] = useState("");
 
@@ -45,7 +41,7 @@ export default function MainApp({ onLogout }) {
   const selectedDocs = useMemo(() => {
     const set = selectedDocIds;
     const list = readyDocs.filter((d) => set.has(d.id));
-    return list.length > 0 ? list : readyDocs;
+    return list.length > 0 ? list : readyDocs; // fallback: all ready docs
   }, [readyDocs, selectedDocIds]);
 
   function getAuthHeaders(extra = {}) {
@@ -66,19 +62,11 @@ export default function MainApp({ onLogout }) {
   }, [input]);
 
   useEffect(() => {
-    if (isGuest) {
-      setUploadedDocs(guestData.documents);
-      setSelectedDocIds(new Set(guestData.documents.map(d => d.id)));
-    }
-  }, [isGuest, guestData.documents]);
-
-  useEffect(() => {
     (async () => {
       await checkHealth();
-      if (!isGuest) {
-        await refreshDocs();
-      }
+      await refreshDocs(); // ✅ también en guest (porque ya hay token)
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGuest]);
 
   async function checkHealth() {
@@ -95,21 +83,12 @@ export default function MainApp({ onLogout }) {
   }
 
   async function refreshDocs() {
-    if (isGuest) {
-      setUploadedDocs(guestData.documents);
-      return;
-    }
-
     try {
-      const res = await fetch(LIST_DOCS_URL, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!res.ok) {
-        throw new Error(`List docs failed (${res.status})`);
-      }
+      const res = await fetch(LIST_DOCS_URL, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(`List docs failed (${res.status})`);
 
       const data = await res.json();
+
       const mapped = (data || []).map((d) => ({
         id: String(d.id),
         name: d.filename,
@@ -119,11 +98,15 @@ export default function MainApp({ onLogout }) {
 
       setUploadedDocs(mapped);
 
+      // ✅ aquí arreglamos el contador real de docs para guest (Opción B)
+      if (isGuest) {
+        setGuestDocsCount(mapped.length);
+      }
+
+      // auto-select once
       setSelectedDocIds((prev) => {
         if (prev.size > 0) return prev;
-        const next = new Set();
-        mapped.forEach((x) => next.add(x.id));
-        return next;
+        return new Set(mapped.map((x) => x.id));
       });
     } catch (e) {
       console.warn(e);
@@ -134,98 +117,79 @@ export default function MainApp({ onLogout }) {
     const files = Array.from(fileList || []);
     if (files.length === 0) return;
 
+    // ✅ para guest, el límite real lo manejas con el contador del backend (guestLimits.canUpload)
     if (isGuest && !guestLimits.canUpload) {
       setMessages((prev) => [
         ...prev,
         {
           role: "system",
           text: `Límite alcanzado: Máximo ${guestLimits.maxDocuments} documentos en modo invitado. Crea una cuenta para subir más.`,
-          time: nowLabel()
+          time: nowLabel(),
         },
       ]);
       return;
     }
 
     for (const f of files) {
-      if (isGuest) {
-        const tempDoc = {
-          id: crypto.randomUUID(),
-          name: f.name,
-          sizeBytes: f.size,
-          status: "ready",
-          file: f,
-        };
-        addGuestDocument(tempDoc);
-        setUploadedDocs(prev => [tempDoc, ...prev]);
-        setSelectedDocIds(prev => {
+      const tempId = crypto.randomUUID();
+
+      setUploadedDocs((prev) => [
+        { id: tempId, name: f.name, sizeBytes: f.size, status: "uploading" },
+        ...prev,
+      ]);
+
+      try {
+        const form = new FormData();
+        form.append("file", f);
+
+        const res = await fetch(UPLOAD_URL, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: form,
+        });
+
+        if (!res.ok) {
+          let detail = "";
+          try {
+            const err = await res.json();
+            detail = err?.detail ? ` — ${err.detail}` : "";
+          } catch {}
+          throw new Error(`Upload failed (${res.status})${detail}`);
+        }
+
+        const doc = await res.json();
+
+        setUploadedDocs((prev) =>
+          prev.map((d) =>
+            d.id === tempId
+              ? {
+                  id: String(doc.id),
+                  name: doc.filename,
+                  sizeBytes: doc.file_size ?? f.size,
+                  status: "ready",
+                }
+              : d
+          )
+        );
+
+        setSelectedDocIds((prev) => {
           const next = new Set(prev);
-          next.add(tempDoc.id);
+          next.add(String(doc.id));
           return next;
         });
-      } else {
-        const tempId = crypto.randomUUID();
-
-        setUploadedDocs((prev) => [
-          { id: tempId, name: f.name, sizeBytes: f.size, status: "uploading" },
+      } catch (e) {
+        console.error(e);
+        setUploadedDocs((prev) =>
+          prev.map((d) => (d.id === tempId ? { ...d, status: "error" } : d))
+        );
+        setMessages((prev) => [
           ...prev,
+          { role: "system", text: `Error subiendo "${f.name}": ${e.message}`, time: nowLabel() },
         ]);
-
-        try {
-          const form = new FormData();
-          form.append("file", f);
-
-          const res = await fetch(UPLOAD_URL, {
-            method: "POST",
-            headers: getAuthHeaders(),
-            body: form,
-          });
-
-          if (!res.ok) {
-            let detail = "";
-            try {
-              const err = await res.json();
-              detail = err?.detail ? ` — ${err.detail}` : "";
-            } catch {}
-            throw new Error(`Upload failed (${res.status})${detail}`);
-          }
-
-          const doc = await res.json();
-
-          setUploadedDocs((prev) =>
-            prev.map((d) =>
-              d.id === tempId
-                ? {
-                    id: String(doc.id),
-                    name: doc.filename,
-                    sizeBytes: doc.file_size ?? f.size,
-                    status: "ready",
-                  }
-                : d
-            )
-          );
-
-          setSelectedDocIds((prev) => {
-            const next = new Set(prev);
-            next.add(String(doc.id));
-            return next;
-          });
-        } catch (e) {
-          console.error(e);
-          setUploadedDocs((prev) =>
-            prev.map((d) => (d.id === tempId ? { ...d, status: "error" } : d))
-          );
-
-          setMessages((prev) => [
-            ...prev,
-            { role: "system", text: `Error subiendo "${f.name}": ${e.message}`, time: nowLabel() },
-          ]);
-        }
       }
     }
 
-    if (!isGuest) {
-      await refreshDocs();
-    }
+    await refreshDocs();
   }
 
   function onDrop(e) {
@@ -265,15 +229,13 @@ export default function MainApp({ onLogout }) {
         {
           role: "system",
           text: `Límite alcanzado: Máximo ${guestLimits.maxQuestions} preguntas en modo invitado. Crea una cuenta para continuar.`,
-          time: nowLabel()
+          time: nowLabel(),
         },
       ]);
       return;
     }
 
-    if (isGuest) {
-      incrementGuestQuestions();
-    }
+    if (isGuest) incrementGuestQuestions();
 
     const time = nowLabel();
     setMessages((prev) => [...prev, { role: "user", text: question, time }]);
@@ -324,7 +286,7 @@ export default function MainApp({ onLogout }) {
         msg.includes("404") || msg.toLowerCase().includes("not found")
           ? "Endpoint de chat no encontrado. Falta implementar POST /chat en el backend."
           : msg.includes("401")
-          ? "401 No autorizado — necesitas iniciar sesión."
+          ? "401 No autorizado — revisa tu token."
           : msg;
 
       addAssistantMessageReplacing(tempId, {
@@ -360,19 +322,7 @@ export default function MainApp({ onLogout }) {
     });
   }
 
-  // Eliminar documento (del backend si está autenticado)
   async function removeDoc(id) {
-    if (isGuest) {
-      removeGuestDocument(id);
-      setUploadedDocs((prev) => prev.filter((d) => d.id !== id));
-      setSelectedDocIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      return;
-    }
-
     try {
       const res = await fetch(`${API_BASE}/documents/${id}`, {
         method: "DELETE",
@@ -389,6 +339,8 @@ export default function MainApp({ onLogout }) {
         next.delete(id);
         return next;
       });
+
+      await refreshDocs(); // ✅ para refrescar contador guest
     } catch (e) {
       console.error(e);
       setMessages((prev) => [
@@ -398,20 +350,7 @@ export default function MainApp({ onLogout }) {
     }
   }
 
-  // Renombrar documento
   async function renameDoc(id, filename) {
-    if (isGuest) {
-      // Actualizar en guestData (sessionStorage)
-      updateGuestDocument(id, { name: filename });
-      // Actualizar estado local
-      setUploadedDocs((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, name: filename } : d))
-      );
-      setRenamingDoc(null);
-      setNewName("");
-      return;
-    }
-
     try {
       const res = await fetch(`${API_BASE}/documents/${id}`, {
         method: "PUT",
@@ -420,15 +359,11 @@ export default function MainApp({ onLogout }) {
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Rename failed (${res.status})`);
       }
 
-      const updatedDoc = await res.json();
-
-      // Forzar refresh desde el servidor para asegurar sincronización
       await refreshDocs();
-
       setRenamingDoc(null);
       setNewName("");
     } catch (e) {
@@ -440,30 +375,13 @@ export default function MainApp({ onLogout }) {
     }
   }
 
-  // Descargar documento
   async function downloadDoc(id, filename) {
-    if (isGuest) {
-      // En modo guest, el archivo está en memoria
-      const doc = guestData.documents.find((d) => d.id === id);
-      if (doc && doc.file) {
-        const url = URL.createObjectURL(doc.file);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-      return;
-    }
-
     try {
       const res = await fetch(`${API_BASE}/documents/${id}/download`, {
         headers: getAuthHeaders(),
       });
 
-      if (!res.ok) {
-        throw new Error(`Download failed (${res.status})`);
-      }
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -481,19 +399,16 @@ export default function MainApp({ onLogout }) {
     }
   }
 
-  // Iniciar renombrado
   function startRename(doc) {
     setRenamingDoc(doc);
     setNewName(doc.name);
   }
 
-  // Cancelar renombrado
   function cancelRename() {
     setRenamingDoc(null);
     setNewName("");
   }
 
-  // Confirmar renombrado
   function confirmRename() {
     if (renamingDoc && newName.trim()) {
       renameDoc(renamingDoc.id, newName.trim());
@@ -579,11 +494,7 @@ export default function MainApp({ onLogout }) {
                 >
                   ✎
                 </button>
-                <button
-                  className="docActionBtn danger"
-                  onClick={() => removeDoc(d.id)}
-                  title="Eliminar"
-                >
+                <button className="docActionBtn danger" onClick={() => removeDoc(d.id)} title="Eliminar">
                   ✕
                 </button>
               </div>
@@ -592,9 +503,7 @@ export default function MainApp({ onLogout }) {
         </div>
 
         <div className="leftFooter">
-          <div className="hintSmall">
-            {apiStatus.msg}
-          </div>
+          <div className="hintSmall">{apiStatus.msg}</div>
           <button className="logoutBtn" onClick={onLogout}>
             {isGuest ? "Salir" : "Cerrar sesión"}
           </button>
@@ -628,9 +537,7 @@ export default function MainApp({ onLogout }) {
             <button className="ghostBtn" onClick={newChat}>
               Nuevo chat
             </button>
-            <div className="avatar">
-              {user?.email ? user.email[0].toUpperCase() : "👤"}
-            </div>
+            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : "👤"}</div>
           </div>
         </header>
 
@@ -649,9 +556,7 @@ export default function MainApp({ onLogout }) {
                   }}
                   onToggleSources={() => {
                     setMessages((prev) =>
-                      prev.map((x, idx) =>
-                        idx === i ? { ...x, sourcesOpen: !x.sourcesOpen } : x
-                      )
+                      prev.map((x, idx) => (idx === i ? { ...x, sourcesOpen: !x.sourcesOpen } : x))
                     );
                   }}
                 />
@@ -669,11 +574,7 @@ export default function MainApp({ onLogout }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={
-                readyDocs.length === 0
-                  ? "Sube documentos primero…"
-                  : "Escribe tu pregunta… (El chat necesita endpoint backend)"
-              }
+              placeholder={readyDocs.length === 0 ? "Sube documentos primero…" : "Escribe tu pregunta…"}
               disabled={busy}
               rows={1}
             />
@@ -689,9 +590,7 @@ export default function MainApp({ onLogout }) {
 
           <div className="composerMeta">
             <span className="mutedText">
-              {readyDocs.length === 0
-                ? "No hay documentos subidos."
-                : `Buscando en ${selectedDocs.length} documento(s).`}
+              {readyDocs.length === 0 ? "No hay documentos subidos." : `Buscando en ${selectedDocs.length} documento(s).`}
             </span>
           </div>
         </footer>
@@ -734,9 +633,7 @@ function Empty({ disabled }) {
       <div className="emptyCard">
         <div className="emptyHead">Haz preguntas sobre tus documentos</div>
         <div className="emptyBody">
-          {disabled
-            ? "Sube al menos un archivo a la izquierda para comenzar."
-            : "Escribe tu pregunta. (El endpoint de chat debe existir en el backend.)"}
+          {disabled ? "Sube al menos un archivo a la izquierda para comenzar." : "Escribe tu pregunta."}
         </div>
       </div>
     </div>
