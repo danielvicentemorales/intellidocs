@@ -29,3 +29,7 @@ app.include_router(chat_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/")
+def root():
+    return {"message": "IntelliDocs API is running"}
