@@ -16,7 +16,11 @@ app = FastAPI(title="IntelliDocs API")
 # CORS (so frontend on :5173 can call backend on :8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+    "http://localhost:5173",
+    "https://intellidocs-ivory.vercel.app"
+]
+,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
