@@ -1,6 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 
-const API_BASE = "http://localhost:8000";
+// ✅ En producción (Vercel) usa VITE_API_URL
+// ✅ En local, si no existe la env var, cae a localhost:8000
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const GUEST_LIMITS = {
   maxDocuments: 3,
@@ -18,9 +26,7 @@ export function AuthProvider({ children }) {
   // solo para UI (preguntas). Docs ya NO son source of truth.
   const [guestData, setGuestData] = useState(() => {
     const saved = sessionStorage.getItem("guestData");
-    return saved
-      ? JSON.parse(saved)
-      : { questionsAsked: 0 };
+    return saved ? JSON.parse(saved) : { questionsAsked: 0 };
   });
 
   // contador real de docs guest (viene del backend)
@@ -132,26 +138,29 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const register = useCallback(async (email, password) => {
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+  const register = useCallback(
+    async (email, password) => {
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Registration failed");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.detail || "Registration failed");
+        }
+
+        return await login(email, password);
+      } catch (e) {
+        setError(e.message);
+        return { success: false, error: e.message };
       }
-
-      return await login(email, password);
-    } catch (e) {
-      setError(e.message);
-      return { success: false, error: e.message };
-    }
-  }, [login]);
+    },
+    [login]
+  );
 
   const enterAsGuest = useCallback(async () => {
     setError(null);
@@ -202,7 +211,10 @@ export function AuthProvider({ children }) {
   const guestLimits = {
     documentsUsed: guestDocsCount,
     documentsRemaining: Math.max(0, GUEST_LIMITS.maxDocuments - guestDocsCount),
-    questionsRemaining: Math.max(0, GUEST_LIMITS.maxQuestions - (guestData.questionsAsked || 0)),
+    questionsRemaining: Math.max(
+      0,
+      GUEST_LIMITS.maxQuestions - (guestData.questionsAsked || 0)
+    ),
     maxDocuments: GUEST_LIMITS.maxDocuments,
     maxQuestions: GUEST_LIMITS.maxQuestions,
     canUpload: guestDocsCount < GUEST_LIMITS.maxDocuments,
@@ -217,7 +229,7 @@ export function AuthProvider({ children }) {
     error,
     guestData,
     guestDocsCount,
-    setGuestDocsCount, // MainApp lo usa cuando refresca docs
+    setGuestDocsCount,
     guestLimits,
     login,
     register,
