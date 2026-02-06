@@ -10,9 +10,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
+# Env files (NO subir)
+.env
+.env.*
+!.env.example
+
+# Build outputs
 dist
 dist-ssr
+
+# Dependencies
+node_modules
+
+# Local overrides
 *.local
 
 # Editor directories and files
