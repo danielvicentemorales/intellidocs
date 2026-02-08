@@ -70,6 +70,7 @@ html, body, #root {
   align-items:flex-end;
   border-bottom:1px solid var(--border);
   text-align:left;
+  flex-shrink:0;
 }
 
 .brandLogo{
@@ -92,6 +93,9 @@ html, body, #root {
   cursor:pointer;
   text-align:center;
   transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  flex-shrink: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 .drop:hover{
   transform: translateY(-1px);
@@ -108,6 +112,7 @@ html, body, #root {
   align-items:center;
   justify-content:space-between;
   padding: 0 16px 10px 16px;
+  flex-shrink:0;
 }
 .panelTitle{ font-weight:800; }
 .panelCount{
@@ -148,6 +153,11 @@ html, body, #root {
   color: transparent;
   cursor:pointer;
   font-weight:900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  padding:0;
 }
 .docCheck.on{
   background: rgba(124,58,237,0.30);
@@ -194,6 +204,7 @@ html, body, #root {
 .leftFooter{
   padding: 12px 16px;
   border-top:1px solid var(--border);
+  flex-shrink:0;
 }
 .hintSmall{ color: rgba(255,255,255,0.52); font-size:12px; }
 
@@ -212,6 +223,7 @@ html, body, #root {
   padding: 12px 16px 10px 16px;
   border-bottom:1px solid var(--border);
   background: rgba(255,255,255,0.04);
+  flex-shrink: 0;
 }
 
 .title{ font-weight:900; font-size:16px; }
@@ -223,9 +235,11 @@ html, body, #root {
 .avatar{
   width:36px;height:36px;
   border-radius:999px;
-  background: rgba(124,58,237,0.22);
-  border:1px solid rgba(124,58,237,0.35);
+  background: rgba(255,255,255,0.12);
+  border:1px solid rgba(255,255,255,0.22);
   display:flex; align-items:center; justify-content:center;
+  font-size: 16px;
+  color: rgba(255,255,255,0.95);
 }
 
 .ghostBtn{
@@ -236,6 +250,10 @@ html, body, #root {
   border-radius: 12px;
   cursor:pointer;
   font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
 }
 .ghostBtn:hover{ background: rgba(255,255,255,0.06); }
 
@@ -328,6 +346,11 @@ html, body, #root {
   width:34px;height:30px;
   border-radius: 12px;
   cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  padding:0;
 }
 .iconBtn:hover{ background: rgba(255,255,255,0.06); }
 
@@ -450,6 +473,7 @@ html, body, #root {
   border-top: 1px solid var(--border);
   padding: 12px 14px;
   background: rgba(255,255,255,0.04);
+  flex-shrink: 0;
 }
 
 .composerInner{
@@ -468,9 +492,17 @@ html, body, #root {
   outline:none;
   resize:none;
   line-height:1.45;
-  font-size:14px;
+  font-size: 16px;          /* ≥16px prevents iOS auto-zoom */
+  font-family: inherit;
   min-height: 46px;
+  max-height: 160px;
+  -webkit-appearance: none;  /* remove iOS default styling */
+  appearance: none;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.input::-webkit-scrollbar { display: none; }
 .input:focus{
   border-color: rgba(124,58,237,0.45);
   box-shadow: 0 0 0 4px rgba(124,58,237,0.14);
@@ -486,6 +518,12 @@ html, body, #root {
   cursor:pointer;
   font-size: 18px;
   font-weight: 900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  padding:0;
+  flex-shrink:0;
 }
 .send:disabled{
   opacity:0.55;
@@ -520,11 +558,244 @@ html, body, #root {
   40% { transform: translateY(-4px); opacity:1; }
 }
 
-/* Mobile-ish */
-@media (max-width: 980px){
-  .shell{ grid-template-columns: 1fr; }
-  .left{ height: 420px; }
-  .grid{ grid-template-columns: 1fr; }
+/* ================================================
+   MOBILE / RESPONSIVE
+   ================================================ */
+
+/* Hide mobile-only elements on desktop */
+.mobileMenuBtn { display: none !important; }
+.sidebarCloseBtn { display: none; }
+.sidebarBackdrop { display: none; }
+
+@media (max-width: 768px) {
+  /* --- Body: no scroll, everything in viewport --- */
+  body { overflow: hidden; }
+
+  /* --- Shell: single column, fill parent flex --- */
+  .shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+    gap: 0;
+  }
+
+  /* --- Left panel: slide-in drawer --- */
+  .left {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85vw;
+    max-width: 360px;
+    height: 100vh;
+    z-index: 1000;
+    border-radius: 0 18px 18px 0;
+    transform: translateX(-105%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .left.open {
+    transform: translateX(0);
+  }
+
+  /* Sidebar backdrop */
+  .sidebarBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+  }
+
+  /* Close button inside sidebar */
+  .sidebarCloseBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.7);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .sidebarCloseBtn:hover {
+    background: rgba(255,255,255,0.12);
+    color: var(--text);
+  }
+
+  /* Hamburger button — placed at the left of topbar */
+  .mobileMenuBtn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    padding: 8px 12px !important;
+    order: -1;  /* ensure it's the first item */
+    flex-shrink: 0;
+  }
+
+  /* --- Right panel: fill remaining space --- */
+  .right {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    max-height: 100%;
+  }
+
+  /* --- Drop zone: tighter --- */
+  .drop {
+    margin: 12px;
+    padding: 14px;
+  }
+  .dropTitle { font-size: 14px; }
+  .dropHint { font-size: 12px; }
+
+  /* --- Docs list: smaller items --- */
+  .doc { padding: 10px; gap: 8px; }
+  .docName { font-size: 12px; }
+  .docActions { gap: 2px; }
+  .docActionBtn { width: 26px; height: 26px; font-size: 11px; }
+
+  /* --- Top bar --- */
+  .topbar {
+    padding: 10px 12px 8px 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .topLeft {
+    flex: 1;
+    min-width: 0;  /* allow chips to shrink/scroll */
+  }
+  .title { font-size: 15px; }
+  .topRight { gap: 6px; flex-shrink: 0; }
+  .ghostBtn { padding: 6px 10px; font-size: 12px; }
+  .avatar { width: 32px; height: 32px; font-size: 13px; }
+
+  /* --- Chips: scroll horizontally --- */
+  .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 60vw;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { white-space: nowrap; font-size: 11px; flex-shrink: 0; }
+
+  /* --- Chat area --- */
+  .chat { padding: 12px; }
+  .card { width: min(100%, 96%); padding: 10px 12px; border-radius: 14px; }
+  .text { font-size: 13px; }
+  .badge { font-size: 10px; padding: 2px 8px; }
+  .iconBtn { width: 30px; height: 26px; border-radius: 10px; }
+
+  /* --- Empty state --- */
+  .emptyCard { padding: 14px; border-radius: 16px; }
+  .emptyHead { font-size: 16px; }
+  .emptyBody { font-size: 13px; }
+  .grid { grid-template-columns: 1fr; gap: 8px; }
+  .suggest { padding: 10px; font-size: 13px; border-radius: 12px; }
+
+  /* --- Composer --- */
+  .composer { padding: 10px 10px; }
+  .composerInner { gap: 8px; }
+  .input {
+    padding: 10px;
+    font-size: 16px;  /* ≥16px prevents iOS auto-zoom on focus */
+    border-radius: 14px;
+    min-height: 44px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .send {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 16px;
+  }
+  .composerMeta { font-size: 11px; }
+
+  /* --- Sources --- */
+  .sourcesHeader { padding: 8px 10px; font-size: 13px; }
+  .source { padding: 8px 10px; font-size: 13px; border-radius: 12px; }
+  .srcTitle { font-size: 12px; }
+
+  /* --- Brand --- */
+  .brand { padding: 10px 12px 8px 12px; }
+  .brandLogo { width: 38px; height: 38px; border-radius: 12px; }
+  .brandName { font-size: 15px; }
+  .brandSub { font-size: 12px; }
+
+  /* --- Left footer --- */
+  .leftFooter { padding: 10px 12px; }
+
+  /* --- Modal responsive --- */
+  .modal { padding: 20px; }
+  .modalTitle { font-size: 16px; }
+}
+
+/* Guest Banner mobile */
+@media (max-width: 768px) {
+  .guestBanner {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    text-align: center;
+  }
+  .guestBannerContent {
+    justify-content: center;
+  }
+  .guestBannerText { font-size: 12px; }
+  .guestBannerUpgrade {
+    width: 100%;
+    text-align: center;
+    padding: 8px 14px;
+  }
+
+  /* App wrapper fix */
+  .appWrapper {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .appWrapper .shell {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+}
+
+/* Extra-small screens (< 400px) */
+@media (max-width: 400px) {
+  .left {
+    width: 92vw;
+  }
+  .topbar {
+    padding: 8px 8px 6px 8px;
+  }
+  .chips { max-width: 50vw; }
+  .composer { padding: 8px; }
+  .composerInner { gap: 6px; }
+  .input { padding: 8px; font-size: 16px; }
+  .send { width: 38px; height: 38px; font-size: 14px; }
+  .drop { margin: 8px; padding: 12px; }
+}
+
+/* Medium screens — make sidebar narrower */
+@media (min-width: 769px) and (max-width: 980px) {
+  .shell { grid-template-columns: 280px 1fr; gap: 12px; padding: 12px; }
+  .drop { margin: 12px; padding: 14px; }
+  .brand { padding: 10px 12px 8px 12px; }
 }
 
 /* ========================================
@@ -533,8 +804,10 @@ html, body, #root {
 
 .appWrapper {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .appWrapper .shell {

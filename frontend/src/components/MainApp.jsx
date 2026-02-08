@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
-/**
- * ✅ En Vercel/Preview/Production: usa VITE_API_URL (Railway)
- * ✅ En local: si no existe env var, cae a localhost:8000 (solo DEV)
- */
-const API_BASE =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
-
-if (!API_BASE) console.error("VITE_API_URL is missing in this deployment");
-
+const API_BASE = "http://localhost:8000";
 const HEALTH_URL = `${API_BASE}/health`;
 const LIST_DOCS_URL = `${API_BASE}/documents`;
 const UPLOAD_URL = `${API_BASE}/documents/upload`;
@@ -36,6 +28,8 @@ export default function MainApp({ onLogout }) {
   // Rename modal
   const [renamingDoc, setRenamingDoc] = useState(null);
   const [newName, setNewName] = useState("");
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -85,7 +79,7 @@ export default function MainApp({ onLogout }) {
     } catch (e) {
       setApiStatus({
         ok: false,
-        msg: "Backend: no disponible. Revisa VITE_API_URL en Vercel y que Railway esté online.",
+        msg: "Backend: no disponible. Verifica que FastAPI esté corriendo en http://localhost:8000",
       });
     }
   }
@@ -425,14 +419,26 @@ export default function MainApp({ onLogout }) {
 
   return (
     <div className="shell">
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div className="sidebarBackdrop" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* LEFT: Docs */}
-      <aside className="left">
+      <aside className={`left ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brandLogo">📄</div>
           <div>
             <div className="brandName">IntelliDocs</div>
             <div className="brandSub">Pregunta sobre tus archivos</div>
           </div>
+          <button
+            className="sidebarCloseBtn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Cerrar panel"
+          >
+            ✕
+          </button>
         </div>
 
         <div
@@ -521,6 +527,14 @@ export default function MainApp({ onLogout }) {
       {/* RIGHT: Chat */}
       <main className="right">
         <header className="topbar">
+          <button
+            className="ghostBtn mobileMenuBtn"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Abrir documentos"
+          >
+            ☰
+          </button>
+
           <div className="topLeft">
             <div className="title">Chat</div>
             <div className="subtitle">
@@ -545,7 +559,7 @@ export default function MainApp({ onLogout }) {
             <button className="ghostBtn" onClick={newChat}>
               Nuevo chat
             </button>
-            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : "👤"}</div>
+            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}</div>
           </div>
         </header>
 
@@ -598,9 +612,7 @@ export default function MainApp({ onLogout }) {
 
           <div className="composerMeta">
             <span className="mutedText">
-              {readyDocs.length === 0
-                ? "No hay documentos subidos."
-                : `Buscando en ${selectedDocs.length} documento(s).`}
+              {readyDocs.length === 0 ? "No hay documentos subidos." : `Buscando en ${selectedDocs.length} documento(s).`}
             </span>
           </div>
         </footer>
