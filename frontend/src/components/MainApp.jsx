@@ -1,7 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
-const API_BASE = "http://localhost:8000";
+/**
+ * ✅ En Vercel/Preview/Production: usa VITE_API_URL (Railway)
+ * ✅ En local: si no existe env var, cae a localhost:8000 (solo DEV)
+ */
+const API_BASE =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+if (!API_BASE) console.error("VITE_API_URL is missing in this deployment");
+
 const HEALTH_URL = `${API_BASE}/health`;
 const LIST_DOCS_URL = `${API_BASE}/documents`;
 const UPLOAD_URL = `${API_BASE}/documents/upload`;
@@ -79,7 +87,7 @@ export default function MainApp({ onLogout }) {
     } catch (e) {
       setApiStatus({
         ok: false,
-        msg: "Backend: no disponible. Verifica que FastAPI esté corriendo en http://localhost:8000",
+        msg: "Backend: no disponible. Verifica la conexión con el servidor.",
       });
     }
   }

@@ -6,9 +6,14 @@ import React, {
   useCallback,
 } from "react";
 
-// ✅ En producción (Vercel) usa VITE_API_URL
-// ✅ En local, si no existe la env var, cae a localhost:8000
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+/**
+ * ✅ En Vercel/Preview/Production: usa VITE_API_URL (Railway)
+ * ✅ En local: si no existe env var, cae a localhost:8000 (solo DEV)
+ */
+const API_BASE =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+if (!API_BASE) console.error("VITE_API_URL is missing in this deployment");
 
 const GUEST_LIMITS = {
   maxDocuments: 3,
