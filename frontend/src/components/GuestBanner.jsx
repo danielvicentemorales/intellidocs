@@ -15,12 +15,12 @@ export default function GuestBanner({ onUpgrade }) {
       <div className="guestBannerContent">
         <span className="guestBannerIcon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
         <span className="guestBannerText">
-          Modo invitado: {guestLimits.documentsRemaining}/{guestLimits.maxDocuments} docs
-          | {guestLimits.questionsRemaining}/{guestLimits.maxQuestions} preguntas
+          Guest mode: {guestLimits.documentsRemaining}/{guestLimits.maxDocuments} docs
+          | {guestLimits.questionsRemaining}/{guestLimits.maxQuestions} questions
         </span>
       </div>
       <button className="guestBannerUpgrade" onClick={onUpgrade}>
-        Crear cuenta gratis
+        Create free account
       </button>
     </div>
   );

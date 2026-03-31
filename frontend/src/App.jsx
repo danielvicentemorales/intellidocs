@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./styles.css";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LandingPage from "./components/LandingPage";
@@ -9,13 +9,32 @@ import MainApp from "./components/MainApp";
 function AppContent() {
   const { user, isGuest, loading, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState("landing");
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("intellidocs-theme");
+    if (saved) return saved;
+    return "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("intellidocs-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   if (loading) {
     return (
-      <div className="loadingScreen">
-        <div className="loadingSpinner">📄</div>
-        <p>Cargando IntelliDocs...</p>
-      </div>
+      <>
+        <button className="themeToggle" onClick={toggleTheme}>
+          {theme === "dark" ? "🌙 Dark mode" : "☀ Light mode"}
+        </button>
+        <div className="loadingScreen">
+          <div className="loadingSpinner">📄</div>
+          <p>Loading IntelliDocs...</p>
+        </div>
+      </>
     );
   }
 
@@ -36,6 +55,8 @@ function AppContent() {
             logout();
             setCurrentPage("landing");
           }}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
       </div>
     );
@@ -43,14 +64,25 @@ function AppContent() {
 
   if (currentPage === "auth") {
     return (
-      <AuthForm
-        onBack={() => setCurrentPage("landing")}
-        onSuccess={() => setCurrentPage("app")}
-      />
+      <>
+        <button className="themeToggle" onClick={toggleTheme}>
+          {theme === "dark" ? "🌙 Dark mode" : "☀ Light mode"}
+        </button>
+        <AuthForm
+          onBack={() => setCurrentPage("landing")}
+          onSuccess={() => setCurrentPage("app")}
+        />
+      </>
     );
   }
 
-  return <LandingPage onNavigateToAuth={() => setCurrentPage("auth")} />;
+  return (
+    <LandingPage
+      onNavigateToAuth={() => setCurrentPage("auth")}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+    />
+  );
 }
 
 export default function App() {

@@ -15,7 +15,7 @@ const LIST_DOCS_URL = `${API_BASE}/documents`;
 const UPLOAD_URL = `${API_BASE}/documents/upload`;
 const CHAT_URL = `${API_BASE}/chat`;
 
-export default function MainApp({ onLogout }) {
+export default function MainApp({ onLogout, theme, onToggleTheme }) {
   const {
     isGuest,
     user,
@@ -87,7 +87,7 @@ export default function MainApp({ onLogout }) {
     } catch (e) {
       setApiStatus({
         ok: false,
-        msg: "Backend: no disponible. Verifica la conexión con el servidor.",
+        msg: "Backend unavailable",
       });
     }
   }
@@ -133,7 +133,7 @@ export default function MainApp({ onLogout }) {
         ...prev,
         {
           role: "system",
-          text: `Límite alcanzado: Máximo ${guestLimits.maxDocuments} documentos en modo invitado. Crea una cuenta para subir más.`,
+          text: `Upload limit reached: max ${guestLimits.maxDocuments} documents in guest mode. Create an account to upload more.`,
           time: nowLabel(),
         },
       ]);
@@ -194,7 +194,7 @@ export default function MainApp({ onLogout }) {
         );
         setMessages((prev) => [
           ...prev,
-          { role: "system", text: `Error subiendo "${f.name}": ${e.message}`, time: nowLabel() },
+          { role: "system", text: `Upload error "${f.name}": ${e.message}`, time: nowLabel() },
         ]);
       }
     }
@@ -228,7 +228,7 @@ export default function MainApp({ onLogout }) {
     if (readyDocs.length === 0) {
       setMessages((prev) => [
         ...prev,
-        { role: "system", text: "Sube al menos un documento primero.", time: nowLabel() },
+        { role: "system", text: "Upload at least one document first.", time: nowLabel() },
       ]);
       return;
     }
@@ -238,7 +238,7 @@ export default function MainApp({ onLogout }) {
         ...prev,
         {
           role: "system",
-          text: `Límite alcanzado: Máximo ${guestLimits.maxQuestions} preguntas en modo invitado. Crea una cuenta para continuar.`,
+          text: `Question limit reached: max ${guestLimits.maxQuestions} questions in guest mode. Create an account to continue.`,
           time: nowLabel(),
         },
       ]);
@@ -282,7 +282,7 @@ export default function MainApp({ onLogout }) {
       if (data.conversationId) setConversationId(data.conversationId);
 
       addAssistantMessageReplacing(tempId, {
-        text: data.answer || "(Sin respuesta.)",
+        text: data.answer || "(No response.)",
         time: nowLabel(),
         sources: data.sources || [],
         isTyping: false,
@@ -294,9 +294,9 @@ export default function MainApp({ onLogout }) {
       const msg = String(e?.message || "");
       const hint =
         msg.includes("404") || msg.toLowerCase().includes("not found")
-          ? "Endpoint de chat no encontrado. Falta implementar POST /chat en el backend."
+          ? "Chat endpoint not found. POST /chat may not be implemented."
           : msg.includes("401")
-          ? "401 No autorizado — revisa tu token."
+          ? "401 Unauthorized — check your session token."
           : msg;
 
       addAssistantMessageReplacing(tempId, {
@@ -355,7 +355,7 @@ export default function MainApp({ onLogout }) {
       console.error(e);
       setMessages((prev) => [
         ...prev,
-        { role: "system", text: `Error eliminando documento: ${e.message}`, time: nowLabel() },
+        { role: "system", text: `Delete error: ${e.message}`, time: nowLabel() },
       ]);
     }
   }
@@ -380,7 +380,7 @@ export default function MainApp({ onLogout }) {
       console.error(e);
       setMessages((prev) => [
         ...prev,
-        { role: "system", text: `Error renombrando: ${e.message}`, time: nowLabel() },
+        { role: "system", text: `Rename error: ${e.message}`, time: nowLabel() },
       ]);
     }
   }
@@ -404,7 +404,7 @@ export default function MainApp({ onLogout }) {
       console.error(e);
       setMessages((prev) => [
         ...prev,
-        { role: "system", text: `Error descargando: ${e.message}`, time: nowLabel() },
+        { role: "system", text: `Download error: ${e.message}`, time: nowLabel() },
       ]);
     }
   }
@@ -435,15 +435,21 @@ export default function MainApp({ onLogout }) {
       {/* LEFT: Docs */}
       <aside className={`left ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
-          <div className="brandLogo">📄</div>
+          <div className="brandLogo">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <rect x="2" y="1" width="12" height="16" rx="2"/>
+              <path d="M6 18h10a2 2 0 002-2V6"/>
+              <path d="M6 6h5M6 9h7M6 12h4" strokeWidth="1.5"/>
+            </svg>
+          </div>
           <div>
             <div className="brandName">IntelliDocs</div>
-            <div className="brandSub">Pregunta sobre tus archivos</div>
+            <div className="brandSub">Document workspace</div>
           </div>
           <button
             className="sidebarCloseBtn"
             onClick={() => setSidebarOpen(false)}
-            aria-label="Cerrar panel"
+            aria-label="Close panel"
           >
             ✕
           </button>
@@ -457,10 +463,16 @@ export default function MainApp({ onLogout }) {
           role="button"
           tabIndex={0}
         >
-          <div className="dropIcon">⬆️</div>
-          <div className="dropTitle">Subir documentos</div>
-          <div className="dropHint">Arrastra o haz clic para seleccionar</div>
-          <div className="dropMeta">PDF, TXT, DOC, DOCX, MD</div>
+          <div className="dropIcon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div className="dropTitle">Upload documents</div>
+          <div className="dropHint">Drag & drop or click to browse</div>
+          <div className="dropMeta">PDF · TXT · DOCX · MD</div>
           <input
             ref={fileInputRef}
             type="file"
@@ -471,7 +483,7 @@ export default function MainApp({ onLogout }) {
         </div>
 
         <div className="panelHeader">
-          <div className="panelTitle">Tus documentos</div>
+          <div className="panelTitle">Documents</div>
           <div className="panelCount">{uploadedDocs.length}</div>
         </div>
 
@@ -481,7 +493,7 @@ export default function MainApp({ onLogout }) {
               <button
                 className={`docCheck ${selectedDocs.some((x) => x.id === d.id) ? "on" : ""}`}
                 onClick={() => toggleDoc(d.id)}
-                title="Incluir/excluir documento"
+                title="Include/exclude document"
                 disabled={d.status !== "ready"}
               >
                 ✓
@@ -494,7 +506,7 @@ export default function MainApp({ onLogout }) {
                 <div className="docSub">
                   <span>{formatBytes(d.sizeBytes)}</span>
                   <span className={`tag ${d.status}`}>
-                    {d.status === "uploading" ? "Subiendo" : d.status === "ready" ? "Listo" : "Error"}
+                    {d.status === "uploading" ? "Uploading" : d.status === "ready" ? "Ready" : "Error"}
                   </span>
                 </div>
               </div>
@@ -503,7 +515,7 @@ export default function MainApp({ onLogout }) {
                 <button
                   className="docActionBtn"
                   onClick={() => downloadDoc(d.id, d.name)}
-                  title="Descargar"
+                  title="Download"
                   disabled={d.status !== "ready"}
                 >
                   ⬇
@@ -511,12 +523,12 @@ export default function MainApp({ onLogout }) {
                 <button
                   className="docActionBtn"
                   onClick={() => startRename(d)}
-                  title="Renombrar"
+                  title="Rename"
                   disabled={d.status !== "ready"}
                 >
                   ✎
                 </button>
-                <button className="docActionBtn danger" onClick={() => removeDoc(d.id)} title="Eliminar">
+                <button className="docActionBtn danger" onClick={() => removeDoc(d.id)} title="Delete">
                   ✕
                 </button>
               </div>
@@ -527,7 +539,7 @@ export default function MainApp({ onLogout }) {
         <div className="leftFooter">
           <div className="hintSmall">{apiStatus.msg}</div>
           <button className="logoutBtn" onClick={onLogout}>
-            {isGuest ? "Salir" : "Cerrar sesión"}
+            {isGuest ? "Exit" : "Sign out"}
           </button>
         </div>
       </aside>
@@ -538,13 +550,13 @@ export default function MainApp({ onLogout }) {
           <button
             className="ghostBtn mobileMenuBtn"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Abrir documentos"
+            aria-label="Open documents"
           >
             ☰
           </button>
 
           <div className="topLeft">
-            <div className="title">Chat</div>
+            <div className="title">Document Q&A</div>
             <div className="subtitle">
               {selectedDocs.length > 0 ? (
                 <div className="chips">
@@ -554,20 +566,31 @@ export default function MainApp({ onLogout }) {
                     </span>
                   ))}
                   {selectedDocs.length > 3 && (
-                    <span className="chip muted">+{selectedDocs.length - 3} más</span>
+                    <span className="chip muted">+{selectedDocs.length - 3} more</span>
                   )}
                 </div>
               ) : (
-                <span className="mutedText">Sube documentos para comenzar</span>
+                <span className="mutedText">Upload documents to get started</span>
               )}
             </div>
           </div>
 
           <div className="topRight">
             <button className="ghostBtn" onClick={newChat}>
-              Nuevo chat
+              New chat
             </button>
-            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}</div>
+            <button
+              className="themeToggleInline"
+              onClick={onToggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              )}
+            </button>
+            <div className="avatar">{user?.email ? user.email[0].toUpperCase() : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}</div>
           </div>
         </header>
 
@@ -604,7 +627,7 @@ export default function MainApp({ onLogout }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={readyDocs.length === 0 ? "Sube documentos primero…" : "Escribe tu pregunta…"}
+              placeholder={readyDocs.length === 0 ? "Upload a document to begin…" : "Ask a question about your documents…"}
               disabled={busy}
               rows={1}
             />
@@ -612,15 +635,15 @@ export default function MainApp({ onLogout }) {
               className="send"
               onClick={() => sendMessage()}
               disabled={busy || !input.trim()}
-              title="Enviar"
+              title="Send"
             >
-              ➤
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
           </div>
 
           <div className="composerMeta">
             <span className="mutedText">
-              {readyDocs.length === 0 ? "No hay documentos subidos." : `Buscando en ${selectedDocs.length} documento(s).`}
+              {readyDocs.length === 0 ? "No documents uploaded." : `Searching across ${selectedDocs.length} document(s).`}
             </span>
           </div>
         </footer>
@@ -630,7 +653,7 @@ export default function MainApp({ onLogout }) {
       {renamingDoc && (
         <div className="modalOverlay" onClick={cancelRename}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modalTitle">Renombrar documento</h3>
+            <h3 className="modalTitle">Rename document</h3>
             <input
               type="text"
               className="modalInput"
@@ -644,10 +667,10 @@ export default function MainApp({ onLogout }) {
             />
             <div className="modalActions">
               <button className="btnSecondary" onClick={cancelRename}>
-                Cancelar
+                Cancel
               </button>
               <button className="btnPrimary" onClick={confirmRename}>
-                Guardar
+                Save
               </button>
             </div>
           </div>
@@ -660,11 +683,31 @@ export default function MainApp({ onLogout }) {
 function Empty({ disabled }) {
   return (
     <div className="empty">
-      <div className="emptyCard">
-        <div className="emptyHead">Haz preguntas sobre tus documentos</div>
-        <div className="emptyBody">
-          {disabled ? "Sube al menos un archivo a la izquierda para comenzar." : "Escribe tu pregunta."}
+      <div className="emptyInner">
+        <div className="emptyIcon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
         </div>
+        <h2 className="emptyHead">Ask your documents</h2>
+        <p className="emptyBody">
+          {disabled
+            ? "Upload a document to begin asking grounded questions."
+            : "Ask a question to get answers with verifiable citations from your uploaded files."}
+        </p>
+        {!disabled && (
+          <div className="emptyHints">
+            <span className="emptyHint">PDF, DOCX, TXT</span>
+            <span className="emptyHintSep">·</span>
+            <span className="emptyHint">Source-backed answers</span>
+            <span className="emptyHintSep">·</span>
+            <span className="emptyHint">Verifiable citations</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -681,12 +724,12 @@ function Message({ msg, onRetry, onToggleSources }) {
       <div className={`card ${isUser ? "userCard" : "aiCard"}`}>
         {!isUser && (
           <div className="metaTop">
-            <span className="badge">Asistente</span>
+            <span className="badge">IntelliDocs</span>
             <div className="actions">
-              <button className="iconBtn" onClick={() => copyText(msg.text)} title="Copiar">
+              <button className="iconBtn" onClick={() => copyText(msg.text)} title="Copy">
                 ⧉
               </button>
-              <button className="iconBtn" onClick={onRetry} title="Reintentar">
+              <button className="iconBtn" onClick={onRetry} title="Retry">
                 ↻
               </button>
             </div>
@@ -698,7 +741,7 @@ function Message({ msg, onRetry, onToggleSources }) {
         {!isUser && msg.sources && msg.sources.length > 0 && (
           <div className="sources">
             <button className="sourcesHeader" onClick={onToggleSources}>
-              <span>Fuentes</span>
+              <span>Sources</span>
               <span className="mutedText">{msg.sources.length}</span>
               <span className="chev">{msg.sourcesOpen ? "▾" : "▸"}</span>
             </button>
@@ -709,7 +752,7 @@ function Message({ msg, onRetry, onToggleSources }) {
                   <button
                     key={s.id}
                     className="source"
-                    onClick={() => alert(`Abrir fuente: ${s.title}`)}
+                    onClick={() => alert(`Open source: ${s.title}`)}
                   >
                     <span className="srcIcon">📄</span>
                     <span className="srcTitle">{s.title}</span>
@@ -729,7 +772,7 @@ function Message({ msg, onRetry, onToggleSources }) {
 
 function TypingDots() {
   return (
-    <div className="dots" aria-label="Asistente escribiendo">
+    <div className="dots" aria-label="Generating response">
       <span />
       <span />
       <span />

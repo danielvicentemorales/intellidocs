@@ -18,28 +18,28 @@ export default function AuthForm({ onBack, onSuccess }) {
 
   const validateForm = () => {
     if (!email.trim()) {
-      setLocalError('El email es requerido');
+      setLocalError('Email is required');
       return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setLocalError('Email inválido');
+      setLocalError('Invalid email address');
       return false;
     }
 
     if (!password) {
-      setLocalError('La contraseña es requerida');
+      setLocalError('Password is required');
       return false;
     }
 
     if (password.length < 6) {
-      setLocalError('La contraseña debe tener al menos 6 caracteres');
+      setLocalError('Password must be at least 6 characters');
       return false;
     }
 
     if (mode === 'register' && password !== confirmPassword) {
-      setLocalError('Las contraseñas no coinciden');
+      setLocalError('Passwords do not match');
       return false;
     }
 
@@ -62,7 +62,7 @@ export default function AuthForm({ onBack, onSuccess }) {
       if (result.success) {
         onSuccess?.();
       } else {
-        setLocalError(result.error || 'Error desconocido');
+        setLocalError(result.error || 'Unknown error');
       }
     } finally {
       setLoading(false);
@@ -76,11 +76,11 @@ export default function AuthForm({ onBack, onSuccess }) {
       <div className="authCard">
         <div className="authHeader">
           <button className="authBack" onClick={onBack} type="button">
-            ← Volver
+            &larr; Back
           </button>
           <div className="authLogo">📄</div>
           <h2 className="authTitle">
-            {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
+            {mode === 'login' ? 'Sign in' : 'Create account'}
           </h2>
         </div>
 
@@ -98,14 +98,14 @@ export default function AuthForm({ onBack, onSuccess }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@email.com"
+              placeholder="you@email.com"
               disabled={loading}
               autoComplete="email"
             />
           </div>
 
           <div className="authField">
-            <label htmlFor="password">Contraseña</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
@@ -119,7 +119,7 @@ export default function AuthForm({ onBack, onSuccess }) {
 
           {mode === 'register' && (
             <div className="authField">
-              <label htmlFor="confirmPassword">Confirmar contraseña</label>
+              <label htmlFor="confirmPassword">Confirm password</label>
               <input
                 id="confirmPassword"
                 type="password"
@@ -137,23 +137,23 @@ export default function AuthForm({ onBack, onSuccess }) {
             className="btnPrimary authSubmit"
             disabled={loading}
           >
-            {loading ? 'Cargando...' : (mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta')}
+            {loading ? 'Loading...' : (mode === 'login' ? 'Sign in' : 'Create account')}
           </button>
         </form>
 
         <div className="authToggle">
           {mode === 'login' ? (
             <p>
-              ¿No tienes cuenta?{' '}
+              Don&apos;t have an account?{' '}
               <button className="authToggleBtn" onClick={toggleMode} type="button">
-                Crear cuenta
+                Create account
               </button>
             </p>
           ) : (
             <p>
-              ¿Ya tienes cuenta?{' '}
+              Already have an account?{' '}
               <button className="authToggleBtn" onClick={toggleMode} type="button">
-                Iniciar sesión
+                Sign in
               </button>
             </p>
           )}
