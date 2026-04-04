@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -8,6 +8,7 @@ from .deps import get_db
 from .models import Document
 from .schemas import DocumentCreate, DocumentOut, DocumentUpdate
 from .dependencies_auth import get_current_identity
+from .ingestion.ingestion_service import ingest, DocumentInput
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -27,6 +28,7 @@ def resolve_owner(identity):
 @router.post("/upload", response_model=DocumentOut, status_code=201)
 async def upload_document(
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
     identity=Depends(get_current_identity),
     db: Session = Depends(get_db),
 ):
@@ -62,12 +64,23 @@ async def upload_document(
         file_size=file_size,
         uploaded_at=datetime.now().isoformat(),
         status="active",
+        ingestion_status="pending",
         user_id=user_id,       # None si guest
         guest_id=guest_id,     # None si user
     )
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    background_tasks.add_task(
+        ingest,
+        DocumentInput(
+            id=document.id,
+            file_path=file_path,
+            file_type=file.content_type or "application/octet-stream",
+        ),
+    )
+
     return document
 
 
@@ -172,6 +185,9 @@ def delete_document(
     doc = q.first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    from .ingestion.vector_store import deleteByDoc  # noqa: local import avoids circular
+    deleteByDoc(document_id, db)
 
     file_path = os.path.join(UPLOAD_DIR, f"{owner_key}_{doc.filename}")
     if os.path.exists(file_path):

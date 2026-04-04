@@ -20,3 +20,6 @@ env/
 .claude/
 # Uploads directory
 uploads/
+
+# Saved RAG files (not ready for prod)
+app/_rag_saved/

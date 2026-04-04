@@ -7,6 +7,7 @@ load_dotenv()
 from .db import Base, engine
 from . import models  # noqa: F401
 from .auth import router as auth_router
+Base.metadata.create_all(bind=engine)
 from .documents import router as documents_router
 from .chat import router as chat_router
 

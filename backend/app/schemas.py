@@ -25,6 +25,7 @@ class DocumentOut(BaseModel):
     file_size: int
     status: str
     uploaded_at: str
+    ingestion_status: str = "pending"
 
     # soporta guest
     user_id: Optional[int] = None
