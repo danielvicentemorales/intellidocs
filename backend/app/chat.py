@@ -2,72 +2,106 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
+from uuid import uuid4
 import os
 
 from .deps import get_db
-from .models import Document
+from .models import Document, ChatSession, Query, Answer
+from .schemas import Citation
 from .dependencies_auth import get_current_identity
-
-from openai import OpenAI
-from pypdf import PdfReader
-from docx import Document as DocxDocument
+from .rag.rag_engine import RAGEngine
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-UPLOAD_DIR = "uploads"
 
-def get_openai_client():
-    key = os.getenv("OPENAI_API_KEY")
-    if not key or key == "your-openai-api-key-here":
-        raise HTTPException(
-            status_code=500,
-            detail="OPENAI_API_KEY not configured. Get your key at https://platform.openai.com/api-keys and add it to backend/.env"
-        )
-    return OpenAI(api_key=key)
+# In-memory conversation history for quick access
+conversation_history = {}
+
+# Singleton RAG engine instance
+_rag_engine = None
+
+
+def _get_rag_engine():
+    global _rag_engine
+    if _rag_engine is None:
+        _rag_engine = RAGEngine(top_k=5)
+    return _rag_engine
+
+
+# ---- Request / Response models ----
 
 class ChatRequest(BaseModel):
     question: str
     docIds: List[str]
     conversationId: Optional[str] = None
 
+
 class Source(BaseModel):
     id: str
     title: str
     pageLabel: Optional[str] = None
 
+
 class ChatResponse(BaseModel):
     answer: str
     sources: List[Source]
+    citations: List[Citation] = []
     conversationId: str
 
-def extract_text_from_file(file_path: str, file_type: str) -> str:
-    text = ""
-    try:
-        if file_type == "application/pdf" or file_path.lower().endswith(".pdf"):
-            reader = PdfReader(file_path)
-            for i, page in enumerate(reader.pages):
-                page_text = page.extract_text() or ""
-                text += f"\n--- Page {i+1} ---\n{page_text}"
-        elif "wordprocessingml" in file_type or file_path.lower().endswith(".docx"):
-            doc = DocxDocument(file_path)
-            for para in doc.paragraphs:
-                text += para.text + "\n"
-        else:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-    except Exception as e:
-        print(f"Error extracting text from {file_path}: {e}")
-        text = f"[Error reading file: {str(e)}]"
-    return text
 
-def truncate_text(text: str, max_chars: int = 30000) -> str:
-    return text[:max_chars] + "\n\n[... texto truncado ...]" if len(text) > max_chars else text
+# ---- Helpers ----
 
-conversation_history = {}
-
-def resolve_owner(identity):
+def _resolve_owner(identity):
     if identity["kind"] == "guest":
         return f"guest_{identity['guest_id']}", None, identity["guest_id"]
     return str(identity["user"].id), identity["user"].id, None
+
+
+def _persist_chat(db, conversation_id, user_id, guest_id, question, answer_text):
+    """Save chat session, query and answer to the database."""
+    try:
+        now = datetime.now().isoformat()
+
+        session = (
+            db.query(ChatSession)
+            .filter(ChatSession.session_id == conversation_id)
+            .first()
+        )
+        if not session:
+            session = ChatSession(
+                session_id=conversation_id,
+                user_id=user_id,
+                guest_id=guest_id,
+                started_at=now,
+                last_activity=now,
+            )
+            db.add(session)
+        else:
+            session.last_activity = now
+
+        query_id = str(uuid4())
+        db.add(Query(
+            query_id=query_id,
+            session_id=conversation_id,
+            question=question,
+            asked_at=now,
+        ))
+
+        db.add(Answer(
+            answer_id=str(uuid4()),
+            query_id=query_id,
+            content=answer_text,
+            confidence=None,
+            created_at=now,
+        ))
+
+        db.commit()
+    except Exception as e:
+        print(f"[Chat] Error persisting chat: {e}")
+        db.rollback()
+
+
+# ---- Endpoints ----
 
 @router.post("", response_model=ChatResponse)
 async def chat(
@@ -75,9 +109,9 @@ async def chat(
     identity=Depends(get_current_identity),
     db: Session = Depends(get_db),
 ):
-    client = get_openai_client()
-    owner_key, user_id, guest_id = resolve_owner(identity)
+    owner_key, user_id, guest_id = _resolve_owner(identity)
 
+    # Parse document IDs
     doc_ids = []
     for id_val in request.docIds:
         try:
@@ -88,68 +122,98 @@ async def chat(
     if not doc_ids:
         raise HTTPException(status_code=400, detail="No documents selected")
 
+    # Fetch documents (enforce ownership)
     q = db.query(Document).filter(Document.id.in_(doc_ids))
-    q = q.filter(Document.user_id == user_id) if user_id is not None else q.filter(Document.guest_id == guest_id)
+    if user_id is not None:
+        q = q.filter(Document.user_id == user_id)
+    else:
+        q = q.filter(Document.guest_id == guest_id)
 
     documents = q.all()
     if not documents:
         raise HTTPException(status_code=404, detail="Documents not found")
 
-    context_parts = []
-    sources = []
+    doc_titles = {doc.id: doc.filename for doc in documents}
 
-    for doc in documents:
-        file_path = os.path.join(UPLOAD_DIR, f"{owner_key}_{doc.filename}")
-        if not os.path.exists(file_path):
-            continue
-        text = extract_text_from_file(file_path, doc.file_type)
-        if text.strip():
-            context_parts.append(f"=== Document: {doc.filename} ===\n{text}")
-            sources.append(Source(id=str(doc.id), title=doc.filename, pageLabel=None))
-
-    if not context_parts:
-        raise HTTPException(status_code=400, detail="No text could be extracted from the selected documents.")
-
-    full_context = truncate_text("\n\n".join(context_parts))
-
+    # Conversation setup
     conversation_id = request.conversationId or f"{owner_key}_{os.urandom(8).hex()}"
     if conversation_id not in conversation_history:
         conversation_history[conversation_id] = []
     history = conversation_history[conversation_id]
 
-    system_message = f"""Eres un asistente inteligente que responde preguntas basándose en los documentos proporcionados.
-Responde en español a menos que el usuario pregunte en otro idioma.
-Basa tus respuestas únicamente en el contenido de los documentos.
-Si la información no está en los documentos, indícalo claramente.
-Sé conciso pero completo en tus respuestas.
-
-DOCUMENTOS DE REFERENCIA:
-{full_context}
-"""
-
-    messages = [{"role": "system", "content": system_message}]
-    for msg in history[-10:]:
-        role = "user" if msg["role"] == "Usuario" else "assistant"
-        messages.append({"role": role, "content": msg["content"]})
-    messages.append({"role": "user", "content": request.question})
-
+    # Run RAG pipeline
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            max_tokens=2000,
-            temperature=0.7
+        rag = _get_rag_engine()
+        answer, chunks = rag.ask(
+            question=request.question,
+            document_ids=doc_ids,
+            db=db,
+            history=history,
         )
-        answer = response.choices[0].message.content
-
-        history.append({"role": "Usuario", "content": request.question})
-        history.append({"role": "Asistente", "content": answer})
-        if len(history) > 20:
-            conversation_history[conversation_id] = history[-20:]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calling OpenAI: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing question: {str(e)}",
+        )
 
-    return ChatResponse(answer=answer, sources=sources, conversationId=conversation_id)
+    if answer is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No content found in the selected documents. "
+                "Make sure documents are fully processed."
+            ),
+        )
+
+    # Build citations (detailed per-chunk references)
+    citations = []
+    for chunk in chunks:
+        doc_title = doc_titles.get(chunk.document_id, f"Document {chunk.document_id}")
+        snippet = chunk.content[:200]
+        if len(chunk.content) > 200:
+            snippet += "..."
+        citations.append(Citation(
+            documentId=str(chunk.document_id),
+            documentTitle=doc_title,
+            chunkIndex=chunk.chunk_index,
+            pageNumber=chunk.page_number,
+            textSnippet=snippet,
+        ))
+
+    # Build sources (one per document, aggregated page labels)
+    doc_pages: dict = {}
+    for chunk in chunks:
+        did = chunk.document_id
+        if did not in doc_pages:
+            doc_pages[did] = set()
+        if chunk.page_number is not None:
+            doc_pages[did].add(chunk.page_number)
+
+    sources = []
+    for did, pages in doc_pages.items():
+        title = doc_titles.get(did, f"Document {did}")
+        if pages:
+            label = "pp. " + ", ".join(str(p) for p in sorted(pages))
+        else:
+            label = None
+        sources.append(Source(id=str(did), title=title, pageLabel=label))
+
+    # Update in-memory history
+    history.append({"role": "user", "content": request.question})
+    history.append({"role": "assistant", "content": answer})
+    if len(history) > 20:
+        conversation_history[conversation_id] = history[-20:]
+
+    # Persist to database
+    _persist_chat(db, conversation_id, user_id, guest_id, request.question, answer)
+
+    return ChatResponse(
+        answer=answer,
+        sources=sources,
+        citations=citations,
+        conversationId=conversation_id,
+    )
+
 
 @router.delete("/history/{conversation_id}")
 async def clear_history(

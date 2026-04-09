@@ -29,10 +29,59 @@ def validateFormat(document: DocumentInput) -> bool:
     return ext in SUPPORTED_EXTENSIONS
 
 
-def ingest(document: DocumentInput) -> None:
+def _extract_and_chunk(file_path: str, file_type: str) -> list:
+    """Extract text from file and split into chunks with page tracking.
+
+    For PDFs, each page is processed independently so we can tag every
+    chunk with its source page number.  For other formats we fall back
+    to the standard extract -> clean -> normalize -> split pipeline.
+
+    Returns a list of dicts: [{"text": ..., "page_number": ..., "token_count": ...}]
     """
-    Full ingestion pipeline:
-      extract → clean → normalize → split → embedBatch → upsert
+    try:
+        if file_type == "application/pdf" or file_path.lower().endswith(".pdf"):
+            from pypdf import PdfReader
+
+            reader = PdfReader(file_path)
+            all_chunks = []
+            for i, page in enumerate(reader.pages):
+                page_text = page.extract_text() or ""
+                if not page_text.strip():
+                    continue
+                cleaned = text_processor.clean(page_text)
+                normalized = text_processor.normalize(cleaned)
+                page_chunks = text_processor.split(normalized)
+                for chunk_text in page_chunks:
+                    if chunk_text.strip():
+                        all_chunks.append({
+                            "text": chunk_text,
+                            "page_number": i + 1,
+                            "token_count": len(chunk_text.split()),
+                        })
+            return all_chunks
+        else:
+            raw_text = text_processor.extract_text_from_file(file_path, file_type)
+            if not raw_text.strip():
+                return []
+            cleaned = text_processor.clean(raw_text)
+            normalized = text_processor.normalize(cleaned)
+            chunks = text_processor.split(normalized)
+            return [
+                {"text": c, "page_number": None, "token_count": len(c.split())}
+                for c in chunks
+                if c.strip()
+            ]
+    except Exception as e:
+        print(f"[IngestionService] Error processing {file_path}: {e}")
+        return []
+
+
+def ingest(document: DocumentInput) -> None:
+    """Full ingestion pipeline with page-level tracking.
+
+    extract -> clean -> normalize -> split (per page for PDFs)
+    -> embedBatch -> upsert
+
     Runs in a background task with its own DB session.
     """
     db = SessionLocal()
@@ -49,26 +98,20 @@ def ingest(document: DocumentInput) -> None:
         doc.ingestion_status = "processing"
         db.commit()
 
-        raw_text = text_processor.extract_text_from_file(document.file_path, document.file_type)
-        if not raw_text.strip():
+        chunks_data = _extract_and_chunk(document.file_path, document.file_type)
+
+        if not chunks_data:
             doc.ingestion_status = "failed"
             db.commit()
             return
 
-        cleaned = text_processor.clean(raw_text)
-        normalized = text_processor.normalize(cleaned)
-        chunks = [c for c in text_processor.split(normalized) if c.strip()]
+        chunk_texts = [c["text"] for c in chunks_data]
+        embeddings = embedding_service.embedBatch(chunk_texts)  # None if no API key
 
-        if not chunks:
-            doc.ingestion_status = "failed"
-            db.commit()
-            return
-
-        embeddings = embedding_service.embedBatch(chunks)  # None if fake/missing key
-        vector_store.upsert(document.id, chunks, embeddings, db)
+        vector_store.upsert(document.id, chunks_data, embeddings, db)
 
         doc.ingestion_status = "ready"
-        db.commit()  # single commit: chunks + status in one transaction
+        db.commit()
 
     except Exception as e:
         print(f"[IngestionService] Failed to ingest document {document.id}: {e}")

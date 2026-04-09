@@ -12,15 +12,11 @@ MIN_SIMILARITY = 0.3
 
 
 def _cosine_similarity(a: List[float], b: List[float]) -> float:
-    # OpenAI text-embedding-3-small returns unit-normalized vectors,
-    # so cosine similarity = dot product. Fall back to full formula
-    # for safety if vectors are not normalized.
     dot = sum(x * y for x, y in zip(a, b))
     mag_a = math.sqrt(sum(x * x for x in a))
     mag_b = math.sqrt(sum(x * x for x in b))
     if mag_a == 0.0 or mag_b == 0.0:
         return 0.0
-    # Skip division if both are unit vectors (within floating point tolerance)
     if abs(mag_a - 1.0) < 0.01 and abs(mag_b - 1.0) < 0.01:
         return dot
     return dot / (mag_a * mag_b)
@@ -28,24 +24,44 @@ def _cosine_similarity(a: List[float], b: List[float]) -> float:
 
 def upsert(
     document_id: int,
-    chunks: List[str],
+    chunks_data,
     embeddings: Optional[List[List[float]]],
     db: Session,
 ) -> None:
-    """Store chunks and their embeddings, replacing any existing ones for this document.
-    Does NOT commit — caller is responsible for committing the transaction."""
+    """Store chunks and their embeddings, replacing any existing ones.
+
+    chunks_data can be:
+      - List[str]  (backward compat, plain text chunks)
+      - List[dict] with keys 'text', 'page_number', 'token_count'
+
+    Does NOT commit -- caller is responsible for committing.
+    """
     db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).delete()
     now = datetime.now().isoformat()
-    db.bulk_insert_mappings(DocumentChunk, [
-        {
+
+    mappings = []
+    for i, chunk in enumerate(chunks_data):
+        # support both plain strings and rich dicts
+        if isinstance(chunk, str):
+            text = chunk
+            page_number = None
+            token_count = len(text.split())
+        else:
+            text = chunk["text"]
+            page_number = chunk.get("page_number")
+            token_count = chunk.get("token_count", len(text.split()))
+
+        mappings.append({
             "document_id": document_id,
             "chunk_index": i,
-            "content": chunk,
+            "content": text,
             "embedding": json.dumps(embeddings[i]) if embeddings is not None else None,
+            "page_number": page_number,
+            "token_count": token_count,
             "created_at": now,
-        }
-        for i, chunk in enumerate(chunks)
-    ])
+        })
+
+    db.bulk_insert_mappings(DocumentChunk, mappings)
     db.flush()
 
 
@@ -68,7 +84,7 @@ def similarity_search(
     if not chunks:
         return []
 
-    # Fallback: no query embedding or no stored embeddings → return by order
+    # Fallback: no query embedding or no stored embeddings -> return by order
     has_embeddings = any(c.embedding for c in chunks)
     if query is None or not has_embeddings:
         return sorted(chunks, key=lambda c: (c.document_id, c.chunk_index))[:k]
@@ -89,12 +105,12 @@ def similarity_search(
 
     # Pad with unembedded chunks if we didn't fill top-k
     if len(results) < k:
-        results.extend(unembedded[:k - len(results)])
+        results.extend(unembedded[: k - len(results)])
 
     return results
 
 
 def deleteByDoc(document_id: int, db: Session) -> None:
     """Delete all chunks belonging to a document.
-    Does NOT commit — caller is responsible for committing the transaction."""
+    Does NOT commit -- caller is responsible."""
     db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).delete()
