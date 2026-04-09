@@ -89,14 +89,22 @@ def similarity_search(
     if query is None or not has_embeddings:
         return sorted(chunks, key=lambda c: (c.document_id, c.chunk_index))[:k]
 
-    # Score each chunk by cosine similarity to the query
+    # Score each chunk by cosine similarity to the query.
+    # When scores are close, prefer shorter (more specific) chunks since
+    # they tend to contain more precise factual statements.
     scored = []
     unembedded = []
     for chunk in chunks:
         if chunk.embedding:
             vec = json.loads(chunk.embedding)
-            score = _cosine_similarity(query, vec)
-            scored.append((score, chunk))
+            sim = _cosine_similarity(query, vec)
+            # Specificity bonus: shorter chunks that still match well are
+            # likely more precise answers.  A small boost (up to 0.03)
+            # breaks ties in favor of concise, factual chunks without
+            # overriding a genuinely higher similarity score.
+            word_count = chunk.token_count or len(chunk.content.split())
+            specificity = max(0.0, 1.0 - word_count / 200.0) * 0.03
+            scored.append((sim + specificity, chunk))
         else:
             unembedded.append(chunk)
 

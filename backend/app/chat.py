@@ -162,6 +162,7 @@ async def chat(
             question=request.question,
             document_ids=ready_ids,
             db=db,
+            doc_titles=doc_titles,
             history=history,
         )
     except ValueError as e:
