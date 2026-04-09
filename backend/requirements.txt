@@ -29,3 +29,7 @@ uvicorn==0.40.0
 openai>=1.0.0
 pypdf>=4.0.0
 python-docx>=1.0.0
+# RAG pipeline (LangChain)
+langchain>=0.3.0
+langchain-openai>=0.3.0
+langchain-core>=0.3.0
