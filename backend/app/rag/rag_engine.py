@@ -58,8 +58,19 @@ class RAGEngine:
         titles = doc_titles or {}
         context = self.build_context(chunks, titles)
 
+        # Build a file list the LLM can reference for document-aware answers
+        file_list = ", ".join(
+            f'"{titles[did]}"' for did in sorted(titles) if did in document_ids
+        )
+
         system_prompt = (
             "You are a document Q&A assistant. Follow these rules:\n\n"
+
+            "SELECTED FILES: The user currently has these files selected: "
+            f"{file_list or 'unknown'}. When the user refers to 'documents', "
+            "'files', 'uploaded documents', or 'selected documents', they "
+            "mean this list. Always acknowledge ALL selected files by name "
+            "before answering about their content.\n\n"
 
             "LANGUAGE: Always respond in the same language the user writes "
             "their question in.\n\n"
@@ -70,6 +81,13 @@ class RAGEngine:
             "from the content and note what is not covered. Use natural "
             "phrasing like 'Based on the retrieved content...' or "
             "'The document describes...'. Avoid stiff language.\n\n"
+
+            "PARAPHRASING: When restating content from fragments, paraphrase "
+            "conservatively. Do NOT invent dialogue, quotes, or wording that "
+            "is not explicitly present in the fragment. If evidence is partial, "
+            "use hedged phrasing like 'the fragment suggests...' or 'the "
+            "retrieved text mentions...'. Never present paraphrased content "
+            "as if it were a direct quote from the document.\n\n"
 
             "ALWAYS ATTEMPT AN ANSWER: If the fragments contain ANY usable "
             "content, produce a grounded answer. Do not refuse or say "
