@@ -14,4 +14,4 @@ npm-debug.log*
 
 # General
 .env
-storage/
+storage/HANDOFF.md
