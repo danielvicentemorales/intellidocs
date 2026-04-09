@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from ..db import SessionLocal
-from ..models import Document
+from ..models import Document, DocumentChunk
 from . import text_processor
 from . import embedding_service
 from . import vector_store
@@ -110,7 +110,18 @@ def ingest(document: DocumentInput) -> None:
 
         vector_store.upsert(document.id, chunks_data, embeddings, db)
 
-        doc.ingestion_status = "ready"
+        # Only mark as "ready" if chunks were stored successfully.
+        # If embeddings failed we still mark ready (fallback retrieval works),
+        # but if no chunks ended up in the DB something went wrong.
+        stored = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == document.id)
+            .count()
+        )
+        if stored == 0:
+            doc.ingestion_status = "failed"
+        else:
+            doc.ingestion_status = "ready"
         db.commit()
 
     except Exception as e:

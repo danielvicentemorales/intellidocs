@@ -281,12 +281,13 @@ export default function MainApp({ onLogout, theme, onToggleTheme }) {
       const data = await res.json();
       if (data.conversationId) setConversationId(data.conversationId);
 
+      const hasSources = data.sources && data.sources.length > 0;
       addAssistantMessageReplacing(tempId, {
         text: data.answer || "(No response.)",
         time: nowLabel(),
         sources: data.sources || [],
         isTyping: false,
-        sourcesOpen: true,
+        sourcesOpen: hasSources,
       });
     } catch (e) {
       console.error(e);
@@ -294,10 +295,12 @@ export default function MainApp({ onLogout, theme, onToggleTheme }) {
       const msg = String(e?.message || "");
       const hint =
         msg.includes("404") || msg.toLowerCase().includes("not found")
-          ? "Chat endpoint not found. POST /chat may not be implemented."
+          ? "Could not reach the chat service. Please try again later."
           : msg.includes("401")
-          ? "401 Unauthorized — check your session token."
-          : msg;
+          ? "Your session has expired. Please sign in again."
+          : msg.includes("500")
+          ? "Something went wrong on our end. Please try again in a moment."
+          : "Something went wrong. Please try again.";
 
       addAssistantMessageReplacing(tempId, {
         text: hint,

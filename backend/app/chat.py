@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
 import os
+import re
 
 from .deps import get_db
 from .models import Document, ChatSession, Query, Answer
@@ -141,33 +142,85 @@ async def chat(
         conversation_history[conversation_id] = []
     history = conversation_history[conversation_id]
 
-    # Run RAG pipeline
+    # Check that at least one document is fully ingested
+    ready_ids = [doc.id for doc in documents if doc.ingestion_status == "ready"]
+    if not ready_ids:
+        return ChatResponse(
+            answer=(
+                "The selected document(s) are still being processed. "
+                "Please wait a moment and try again."
+            ),
+            sources=[],
+            citations=[],
+            conversationId=conversation_id,
+        )
+
+    # Run RAG pipeline (only against fully ingested documents)
     try:
         rag = _get_rag_engine()
         answer, chunks = rag.ask(
             question=request.question,
-            document_ids=doc_ids,
+            document_ids=ready_ids,
             db=db,
             history=history,
         )
+    except ValueError as e:
+        # API key not configured or similar config issue
+        return ChatResponse(
+            answer=f"Configuration error: {e}",
+            sources=[],
+            citations=[],
+            conversationId=conversation_id,
+        )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing question: {str(e)}",
+        print(f"[Chat] RAG error: {e}")
+        return ChatResponse(
+            answer=(
+                "Something went wrong while processing your question. "
+                "Please try again in a moment."
+            ),
+            sources=[],
+            citations=[],
+            conversationId=conversation_id,
+        )
+
+    if answer is None and not chunks:
+        # Empty retrieval — no relevant chunks matched the query.
+        # This is NOT an error, just no matching content.
+        return ChatResponse(
+            answer=(
+                "I couldn't find enough relevant information in the selected "
+                "document(s) to answer that question. Try asking about content "
+                "explicitly mentioned in the file."
+            ),
+            sources=[],
+            citations=[],
+            conversationId=conversation_id,
         )
 
     if answer is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No content found in the selected documents. "
-                "Make sure documents are fully processed."
-            ),
+        # Chunks existed but LLM returned nothing — unexpected, treat as error
+        return ChatResponse(
+            answer="Something went wrong generating a response. Please try again.",
+            sources=[],
+            citations=[],
+            conversationId=conversation_id,
         )
 
-    # Build citations (detailed per-chunk references)
+    # Find which citation numbers the LLM actually referenced in its answer
+    cited_indices = set()
+    for m in re.finditer(r"\[(\d+)\]", answer):
+        idx = int(m.group(1)) - 1  # convert 1-based to 0-based
+        if 0 <= idx < len(chunks):
+            cited_indices.add(idx)
+
+    # Build citations only for chunks the LLM actually used
+    # Fall back to all chunks if the LLM didn't use bracket notation
+    use_indices = cited_indices if cited_indices else set(range(len(chunks)))
+
     citations = []
-    for chunk in chunks:
+    for i in sorted(use_indices):
+        chunk = chunks[i]
         doc_title = doc_titles.get(chunk.document_id, f"Document {chunk.document_id}")
         snippet = chunk.content[:200]
         if len(chunk.content) > 200:
@@ -180,9 +233,10 @@ async def chat(
             textSnippet=snippet,
         ))
 
-    # Build sources (one per document, aggregated page labels)
+    # Build sources from cited chunks only (one per document, aggregated pages)
     doc_pages: dict = {}
-    for chunk in chunks:
+    for i in sorted(use_indices):
+        chunk = chunks[i]
         did = chunk.document_id
         if did not in doc_pages:
             doc_pages[did] = set()
