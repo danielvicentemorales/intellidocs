@@ -283,9 +283,33 @@ async def chat(
         if 0 <= idx < len(chunks):
             cited_indices.add(idx)
 
-    # Build citations only for chunks the LLM actually used
-    # Fall back to all chunks if the LLM didn't use bracket notation
-    use_indices = cited_indices if cited_indices else set(range(len(chunks)))
+    if cited_indices:
+        use_indices = cited_indices
+    else:
+        # No bracket markers — infer which chunks contributed by lexical
+        # overlap with the answer. Only chunks that share non-trivial tokens
+        # with the answer text are kept. Documents whose chunks share nothing
+        # with the answer are dropped entirely.
+        clean_answer = re.sub(r"\[\d+\]", "", answer)
+        answer_tokens = {
+            w.lower() for w in re.findall(r"\w+", clean_answer) if len(w) >= 4
+        }
+        question_tokens = {
+            w.lower() for w in re.findall(r"\w+", request.question) if len(w) >= 4
+        }
+        # Tokens unique to the answer carry more signal than ones echoed from
+        # the question. Require overlap on the answer-only set when possible.
+        answer_only = answer_tokens - question_tokens
+        signal = answer_only if len(answer_only) >= 4 else answer_tokens
+
+        min_overlap = 3 if len(signal) >= 8 else 2
+        use_indices = set()
+        for i, chunk in enumerate(chunks):
+            chunk_tokens = {
+                w.lower() for w in re.findall(r"\w+", chunk.content) if len(w) >= 4
+            }
+            if len(chunk_tokens & signal) >= min_overlap:
+                use_indices.add(i)
 
     citations = []
     for i in sorted(use_indices):
