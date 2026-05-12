@@ -58,6 +58,41 @@ def _resolve_owner(identity):
     return str(identity["user"].id), identity["user"].id, None
 
 
+def _best_sentence(chunk_text: str, question: str, answer: str) -> str:
+    """Pick the sentence from a chunk most relevant to the question and answer.
+
+    Uses keyword overlap (words >= 4 chars, lowercased) between the candidate
+    sentence and tokens from the question + answer. Falls back to the first
+    sentence when nothing overlaps.
+    """
+    text = (chunk_text or "").strip()
+    if not text:
+        return ""
+
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    if not sentences:
+        return text[:300]
+    if len(sentences) == 1:
+        return sentences[0]
+
+    clean_answer = re.sub(r"\[\d+\]", "", answer or "")
+
+    def toks(s: str) -> set:
+        return {w.lower() for w in re.findall(r"\w+", s) if len(w) >= 4}
+
+    target = toks(question) | toks(clean_answer)
+    if not target:
+        return sentences[0]
+
+    best, best_score = sentences[0], -1
+    for sent in sentences:
+        score = len(toks(sent) & target)
+        if score > best_score:
+            best, best_score = sent, score
+
+    return best if best_score > 0 else sentences[0]
+
+
 def _persist_chat(db, conversation_id, user_id, guest_id, question, answer_text):
     """Save chat session, query and answer to the database."""
     try:
@@ -223,9 +258,7 @@ async def chat(
     for i in sorted(use_indices):
         chunk = chunks[i]
         doc_title = doc_titles.get(chunk.document_id, f"Document {chunk.document_id}")
-        snippet = chunk.content[:200]
-        if len(chunk.content) > 200:
-            snippet += "..."
+        snippet = _best_sentence(chunk.content, request.question, answer)
         citations.append(Citation(
             documentId=str(chunk.document_id),
             documentTitle=doc_title,
@@ -253,17 +286,23 @@ async def chat(
             label = None
         sources.append(Source(id=str(did), title=title, pageLabel=label))
 
+    # Strip [N] citation markers from the visible answer — the Sources panel
+    # surfaces them now, so they only add visual noise inline.
+    display_answer = re.sub(r"\s*\[\d+\](?:\s*\[\d+\])*", "", answer)
+    display_answer = re.sub(r"[ \t]+([.,;:!?])", r"\1", display_answer)
+    display_answer = re.sub(r"[ \t]{2,}", " ", display_answer).strip()
+
     # Update in-memory history
     history.append({"role": "user", "content": request.question})
-    history.append({"role": "assistant", "content": answer})
+    history.append({"role": "assistant", "content": display_answer})
     if len(history) > 20:
         conversation_history[conversation_id] = history[-20:]
 
     # Persist to database
-    _persist_chat(db, conversation_id, user_id, guest_id, request.question, answer)
+    _persist_chat(db, conversation_id, user_id, guest_id, request.question, display_answer)
 
     return ChatResponse(
-        answer=answer,
+        answer=display_answer,
         sources=sources,
         citations=citations,
         conversationId=conversation_id,

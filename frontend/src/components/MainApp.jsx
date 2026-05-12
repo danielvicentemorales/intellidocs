@@ -281,13 +281,12 @@ export default function MainApp({ onLogout, theme, onToggleTheme }) {
       const data = await res.json();
       if (data.conversationId) setConversationId(data.conversationId);
 
-      const hasSources = data.sources && data.sources.length > 0;
       addAssistantMessageReplacing(tempId, {
         text: data.answer || "(No response.)",
         time: nowLabel(),
         sources: data.sources || [],
+        citations: data.citations || [],
         isTyping: false,
-        sourcesOpen: hasSources,
       });
     } catch (e) {
       console.error(e);
@@ -307,7 +306,6 @@ export default function MainApp({ onLogout, theme, onToggleTheme }) {
         time: nowLabel(),
         sources: [],
         isTyping: false,
-        sourcesOpen: false,
       });
     } finally {
       setBusy(false);
@@ -610,11 +608,6 @@ export default function MainApp({ onLogout, theme, onToggleTheme }) {
                     const lastUser = [...messages].reverse().find((x) => x.role === "user");
                     if (lastUser) sendMessage(lastUser.text);
                   }}
-                  onToggleSources={() => {
-                    setMessages((prev) =>
-                      prev.map((x, idx) => (idx === i ? { ...x, sourcesOpen: !x.sourcesOpen } : x))
-                    );
-                  }}
                 />
               ))}
               <div ref={chatEndRef} />
@@ -716,12 +709,69 @@ function Empty({ disabled }) {
   );
 }
 
-function Message({ msg, onRetry, onToggleSources }) {
+function Message({ msg, onRetry }) {
   if (msg.role === "system") {
     return <div className="system">{msg.text}</div>;
   }
 
   const isUser = msg.role === "user";
+  const citations = msg.citations || [];
+  const hasCitations = citations.length > 0;
+  const fallbackSources = !hasCitations ? msg.sources || [] : [];
+
+  const citationGroups = useMemo(() => {
+    const groups = new Map();
+    citations.forEach((c, idx) => {
+      const id = c.documentId;
+      if (!groups.has(id)) {
+        groups.set(id, { documentId: id, documentTitle: c.documentTitle, items: [] });
+      }
+      groups.get(id).items.push({ ...c, _idx: idx });
+    });
+    return Array.from(groups.values()).map((g) => {
+      const pages = Array.from(
+        new Set(g.items.map((c) => c.pageNumber).filter((p) => p != null))
+      ).sort((a, b) => a - b);
+      const pageLabel =
+        pages.length === 0
+          ? null
+          : pages.length === 1
+          ? `p. ${pages[0]}`
+          : `pp. ${pages.join(", ")}`;
+      return { ...g, pageLabel };
+    });
+  }, [citations]);
+
+  function positionPopover(e) {
+    const card = e.currentTarget;
+    const popover = card.querySelector(".srcCardPopover");
+    if (!popover) return;
+    popover.style.left = "50%";
+    popover.style.right = "auto";
+    popover.style.transform = "translateX(-50%)";
+    popover.style.top = "auto";
+    popover.style.bottom = "calc(100% + 6px)";
+    popover.style.maxWidth = `${Math.min(360, window.innerWidth - 24)}px`;
+
+    const margin = 8;
+    const rect = popover.getBoundingClientRect();
+    let shift = 0;
+    if (rect.right > window.innerWidth - margin) {
+      shift = -(rect.right - (window.innerWidth - margin));
+    } else if (rect.left < margin) {
+      shift = margin - rect.left;
+    }
+    if (shift) {
+      popover.style.transform = `translateX(calc(-50% + ${shift}px))`;
+    }
+
+    const cardRect = card.getBoundingClientRect();
+    if (cardRect.top < popover.offsetHeight + margin + 6) {
+      popover.style.bottom = "auto";
+      popover.style.top = "calc(100% + 6px)";
+    }
+  }
+
   return (
     <div className={`row ${isUser ? "userRow" : "aiRow"}`}>
       <div className={`card ${isUser ? "userCard" : "aiCard"}`}>
@@ -741,29 +791,73 @@ function Message({ msg, onRetry, onToggleSources }) {
 
         <div className="text">{msg.isTyping ? <TypingDots /> : msg.text}</div>
 
-        {!isUser && msg.sources && msg.sources.length > 0 && (
+        {!isUser && hasCitations && (
           <div className="sources">
-            <button className="sourcesHeader" onClick={onToggleSources}>
+            <div className="sourcesLabel">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
               <span>Sources</span>
-              <span className="mutedText">{msg.sources.length}</span>
-              <span className="chev">{msg.sourcesOpen ? "▾" : "▸"}</span>
-            </button>
+              <span className="sourcesLabelCount">{citationGroups.length}</span>
+            </div>
+            <div className="srcCards">
+              {citationGroups.map((g, idx) => (
+                <button
+                  key={g.documentId}
+                  type="button"
+                  className="srcCard"
+                  onMouseEnter={positionPopover}
+                  onFocus={positionPopover}
+                  onClick={(e) => e.currentTarget.focus()}
+                >
+                  <span className="srcCardNum">{idx + 1}</span>
+                  <div className="srcCardBody">
+                    <div className="srcCardHead">
+                      <span className="srcCardDoc" title={g.documentTitle}>
+                        {g.documentTitle}
+                      </span>
+                      {g.pageLabel && (
+                        <span className="srcCardPage">{g.pageLabel}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="srcCardPopover">
+                    {g.items.map((c) => (
+                      <div key={c._idx} className="srcCardPopoverItem">
+                        {c.pageNumber != null && (
+                          <span className="srcCardPopoverPage">p. {c.pageNumber}</span>
+                        )}
+                        <span className="srcCardPopoverText">
+                          “{c.textSnippet}”
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-            {msg.sourcesOpen && (
-              <div className="sourcesList">
-                {msg.sources.map((s) => (
-                  <button
-                    key={s.id}
-                    className="source"
-                    onClick={() => alert(`Open source: ${s.title}`)}
-                  >
-                    <span className="srcIcon">📄</span>
-                    <span className="srcTitle">{s.title}</span>
-                    {s.pageLabel && <span className="srcPage">{s.pageLabel}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
+        {!isUser && !hasCitations && fallbackSources.length > 0 && (
+          <div className="sources">
+            <div className="sourcesLabel">
+              <span>Sources</span>
+              <span className="sourcesLabelCount">{fallbackSources.length}</span>
+            </div>
+            <div className="srcCards">
+              {fallbackSources.map((s) => (
+                <div key={s.id} className="srcCard">
+                  <div className="srcCardBody">
+                    <div className="srcCardHead">
+                      <span className="srcCardDoc">{s.title}</span>
+                      {s.pageLabel && <span className="srcCardPage">{s.pageLabel}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

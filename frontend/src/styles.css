@@ -554,79 +554,210 @@ html, body, #root {
 
 /* Sources */
 .sources{
-  margin-top: 12px;
-  border-top: 1px solid rgba(148,175,220,0.08);
+  margin-top: 14px;
   padding-top: 10px;
+  border-top: 1px solid rgba(148,175,220,0.10);
 }
 
-.sourcesHeader{
-  width:100%;
-  border:1px solid var(--border);
-  background: rgba(16,24,42,0.5);
-  color: #9cabc4;
-  padding: 8px 12px;
-  border-radius: 8px;
+.sourcesLabel{
   display:flex;
   align-items:center;
-  gap:8px;
-  cursor:pointer;
-  font-weight:600;
-  font-size:13px;
-  transition: background 0.12s;
-}
-.sourcesHeader:hover{ background: rgba(59,130,246,0.08); }
-
-:root[data-theme="light"] .sourcesHeader {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #475569;
-}
-.chev{ margin-left:auto; opacity:0.8; }
-
-.sourcesList{
-  margin-top: 10px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-
-.source{
-  border:1px solid var(--border);
-  background: rgba(16,24,42,0.5);
-  color: #9cabc4;
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor:pointer;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  font-size:13px;
-  transition: background 0.12s;
-}
-.source:hover{ background: rgba(59,130,246,0.08); }
-
-:root[data-theme="light"] .source {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-  color: #334155;
-}
-.srcIcon{ font-size:16px; }
-.srcTitle{
-  flex:1;
-  text-align:left;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  font-weight:700;
-}
-.srcPage{
-  font-size:12px;
+  gap:6px;
   color: var(--muted);
-  border:1px solid var(--border);
-  padding: 2px 8px;
-  border-radius:999px;
-  background: rgba(255,255,255,0.03);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
 }
+.sourcesLabel svg{ opacity: 0.7; }
+.sourcesLabelCount{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(148,175,220,0.12);
+  border-radius: 999px;
+  letter-spacing: 0;
+}
+
+.srcCards{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.srcCard{
+  position: relative;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  background: rgba(16,24,42,0.45);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s, border-color 0.12s;
+}
+.srcCard:hover,
+.srcCard:focus,
+.srcCard:focus-visible{
+  background: rgba(59,130,246,0.08);
+  border-color: rgba(59,130,246,0.30);
+  outline: none;
+}
+:root[data-theme="light"] .srcCard{
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+:root[data-theme="light"] .srcCard:hover,
+:root[data-theme="light"] .srcCard:focus,
+:root[data-theme="light"] .srcCard:focus-visible{
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.srcCardNum{
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: rgba(59,130,246,0.18);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+}
+:root[data-theme="light"] .srcCardNum{
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.srcCardBody{
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.srcCardHead{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.srcCardDoc{
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.srcCardPage{
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148,175,220,0.10);
+  letter-spacing: 0.2px;
+}
+.srcCardText{
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  opacity: 0.85;
+  font-style: italic;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hover popover on each source card */
+.srcCardPopover{
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 8px 10px;
+  background: rgba(11, 18, 36, 0.98);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 50;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.40);
+  pointer-events: none;
+}
+:root[data-theme="light"] .srcCardPopover{
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+.srcCard:hover .srcCardPopover,
+.srcCard:focus .srcCardPopover,
+.srcCard:focus-visible .srcCardPopover{
+  display: block;
+}
+.srcCardPopoverItem{
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  font-style: italic;
+  word-break: break-word;
+  white-space: normal;
+}
+.srcCardPopoverItem + .srcCardPopoverItem{
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+.srcCardPopoverPage{
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(148,175,220,0.12);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+.srcCardPopoverText{
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 480px){
+  .srcCard{ padding: 8px; gap: 8px; }
+  .srcCardText{ font-size: 12.5px; }
+  .srcCardPopover{ max-width: calc(100vw - 16px); padding: 8px; }
+  .srcCardPopoverItem{ font-size: 12.5px; }
+}
+
 
 /* System notice */
 .system{
@@ -992,9 +1123,9 @@ html, body, #root {
   .composerMeta { font-size: 11px; }
 
   /* --- Sources --- */
-  .sourcesHeader { padding: 8px 10px; font-size: 13px; }
-  .source { padding: 8px 10px; font-size: 13px; border-radius: 12px; }
-  .srcTitle { font-size: 12px; }
+  .sourcesLabel { font-size: 10.5px; }
+  .srcCard { padding: 8px; }
+  .srcCardDoc { font-size: 12.5px; }
 
   /* --- Brand --- */
   .brand { padding: 10px 12px 8px 12px; }
