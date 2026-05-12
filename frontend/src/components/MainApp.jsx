@@ -746,6 +746,9 @@ function Message({ msg, onRetry }) {
     const card = e.currentTarget;
     const popover = card.querySelector(".srcCardPopover");
     if (!popover) return;
+
+    // Always anchor above the card. Cap the height so it never extends past
+    // the top of the viewport — internal scroll handles overflow.
     popover.style.left = "50%";
     popover.style.right = "auto";
     popover.style.transform = "translateX(-50%)";
@@ -753,22 +756,21 @@ function Message({ msg, onRetry }) {
     popover.style.bottom = "calc(100% + 6px)";
     popover.style.maxWidth = `${Math.min(360, window.innerWidth - 24)}px`;
 
-    const margin = 8;
+    const cardRect = card.getBoundingClientRect();
+    const margin = 12;
+    const spaceAbove = Math.max(140, cardRect.top - margin);
+    popover.style.maxHeight = `${spaceAbove}px`;
+
+    // Keep the popover horizontally within the viewport
     const rect = popover.getBoundingClientRect();
     let shift = 0;
-    if (rect.right > window.innerWidth - margin) {
-      shift = -(rect.right - (window.innerWidth - margin));
-    } else if (rect.left < margin) {
-      shift = margin - rect.left;
+    if (rect.right > window.innerWidth - 8) {
+      shift = -(rect.right - (window.innerWidth - 8));
+    } else if (rect.left < 8) {
+      shift = 8 - rect.left;
     }
     if (shift) {
       popover.style.transform = `translateX(calc(-50% + ${shift}px))`;
-    }
-
-    const cardRect = card.getBoundingClientRect();
-    if (cardRect.top < popover.offsetHeight + margin + 6) {
-      popover.style.bottom = "auto";
-      popover.style.top = "calc(100% + 6px)";
     }
   }
 

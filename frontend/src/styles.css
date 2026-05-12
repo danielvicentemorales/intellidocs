@@ -698,6 +698,8 @@ html, body, #root {
   transform: translateX(-50%);
   width: max-content;
   max-width: min(360px, calc(100vw - 24px));
+  max-height: 60vh;
+  overflow-y: auto;
   padding: 8px 10px;
   background: rgba(11, 18, 36, 0.98);
   color: var(--text);
@@ -705,7 +707,16 @@ html, body, #root {
   border-radius: 8px;
   z-index: 50;
   box-shadow: 0 10px 24px rgba(0,0,0,0.40);
-  pointer-events: none;
+  pointer-events: auto;
+}
+/* Invisible bridge so mouse can move from card to popover without dropping hover */
+.srcCardPopover::after{
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 8px;
 }
 :root[data-theme="light"] .srcCardPopover{
   background: #ffffff;

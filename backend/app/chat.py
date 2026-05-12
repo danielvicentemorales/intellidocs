@@ -58,22 +58,40 @@ def _resolve_owner(identity):
     return str(identity["user"].id), identity["user"].id, None
 
 
-def _best_sentence(chunk_text: str, question: str, answer: str) -> str:
-    """Pick the sentence from a chunk most relevant to the question and answer.
+_MAX_SNIPPET_CHARS = 220
 
-    Uses keyword overlap (words >= 4 chars, lowercased) between the candidate
-    sentence and tokens from the question + answer. Falls back to the first
-    sentence when nothing overlaps.
+
+def _split_phrases(text: str) -> list:
+    """Split text into short phrases on a wide range of natural boundaries.
+
+    Splits on sentence-ending punctuation, newlines, semicolons, colons, and
+    bullet markers — useful for PDF-extracted text where periods are often
+    missing between list items, headings, and table rows.
+    """
+    parts = re.split(r"(?<=[.!?])\s+|\n+|;\s+|:\s+|\s•\s|\s·\s|\s-\s+", text)
+    return [p.strip(" \t-•·") for p in parts if p and p.strip()]
+
+
+def _truncate_at_word(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    cut = text[: max_chars - 1].rsplit(" ", 1)[0].rstrip(",;:- ")
+    if not cut:
+        cut = text[: max_chars - 1]
+    return cut + "…"
+
+
+def _best_sentence(chunk_text: str, question: str, answer: str) -> str:
+    """Pick the most relevant short phrase from a chunk.
+
+    Scores candidate phrases by keyword overlap with the question + answer
+    (words >= 4 chars, lowercased). When the best phrase is still long,
+    recursively narrows in on the highest-scoring sub-phrase, and finally
+    truncates at a word boundary so snippets stay readable.
     """
     text = (chunk_text or "").strip()
     if not text:
         return ""
-
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
-    if not sentences:
-        return text[:300]
-    if len(sentences) == 1:
-        return sentences[0]
 
     clean_answer = re.sub(r"\[\d+\]", "", answer or "")
 
@@ -81,16 +99,31 @@ def _best_sentence(chunk_text: str, question: str, answer: str) -> str:
         return {w.lower() for w in re.findall(r"\w+", s) if len(w) >= 4}
 
     target = toks(question) | toks(clean_answer)
-    if not target:
-        return sentences[0]
 
-    best, best_score = sentences[0], -1
-    for sent in sentences:
-        score = len(toks(sent) & target)
-        if score > best_score:
-            best, best_score = sent, score
+    def pick_best(candidates: list) -> str:
+        if not candidates:
+            return ""
+        if len(candidates) == 1 or not target:
+            return candidates[0]
+        best, best_score = candidates[0], -1
+        for c in candidates:
+            score = len(toks(c) & target)
+            if score > best_score:
+                best, best_score = c, score
+        return best if best_score > 0 else candidates[0]
 
-    return best if best_score > 0 else sentences[0]
+    phrases = _split_phrases(text)
+    best = pick_best(phrases) or text
+
+    # If the best phrase is still long, try to narrow further on inner
+    # punctuation (commas, dashes, parentheses) before falling back to a
+    # word-boundary truncation.
+    if len(best) > _MAX_SNIPPET_CHARS:
+        inner = [p.strip(" \t,-—()") for p in re.split(r",\s+|\s—\s|\s–\s|\s-\s+", best) if p.strip()]
+        if len(inner) > 1:
+            best = pick_best(inner) or best
+
+    return _truncate_at_word(best, _MAX_SNIPPET_CHARS)
 
 
 def _persist_chat(db, conversation_id, user_id, guest_id, question, answer_text):
