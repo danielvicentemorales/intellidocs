@@ -60,6 +60,22 @@ def _resolve_owner(identity):
 
 _MAX_SNIPPET_CHARS = 220
 
+_REFUSAL_RX = re.compile(
+    r"\b(?:not enough information|cannot answer|can'?t answer|"
+    r"do(?:n'?t| not) see|did(?:n'?t| not) find|"
+    r"not mentioned|no information|not covered|not found|"
+    r"no relevant|could(?:n'?t| not) find|"
+    r"the fragments? (?:don'?t|do not)|i'?m unable to|"
+    r"i (?:can'?t|cannot) (?:find|answer))\b",
+    re.IGNORECASE,
+)
+
+
+def _is_refusal(answer: str) -> bool:
+    if not answer or not answer.strip():
+        return True
+    return bool(_REFUSAL_RX.search(answer))
+
 
 def _split_phrases(text: str) -> list:
     """Split text into short phrases on a wide range of natural boundaries.
@@ -276,20 +292,14 @@ async def chat(
             conversationId=conversation_id,
         )
 
-    # Find which citation numbers the LLM actually referenced in its answer
-    cited_indices = set()
-    for m in re.finditer(r"\[(\d+)\]", answer):
-        idx = int(m.group(1)) - 1  # convert 1-based to 0-based
-        if 0 <= idx < len(chunks):
-            cited_indices.add(idx)
-
-    if cited_indices:
-        use_indices = cited_indices
-    else:
-        # No bracket markers — infer which chunks contributed by lexical
-        # overlap with the answer. Only chunks that share non-trivial tokens
-        # with the answer text are kept. Documents whose chunks share nothing
-        # with the answer are dropped entirely.
+    # Source attribution is strict: a document only appears in Sources if
+    # the answer text contains lexical evidence from one of its chunks.
+    # The LLM's [N] markers are NOT trusted as proof of use — they are only
+    # parsed so they can be stripped from the visible answer. If the answer
+    # is a refusal ("not enough information", etc.) we show no sources at
+    # all, since nothing was actually answered.
+    use_indices: set = set()
+    if not _is_refusal(answer):
         clean_answer = re.sub(r"\[\d+\]", "", answer)
         answer_tokens = {
             w.lower() for w in re.findall(r"\w+", clean_answer) if len(w) >= 4
@@ -297,19 +307,19 @@ async def chat(
         question_tokens = {
             w.lower() for w in re.findall(r"\w+", request.question) if len(w) >= 4
         }
-        # Tokens unique to the answer carry more signal than ones echoed from
-        # the question. Require overlap on the answer-only set when possible.
+        # Tokens unique to the answer are the strongest signal — anything
+        # echoed from the question can match a chunk just by coincidence.
         answer_only = answer_tokens - question_tokens
         signal = answer_only if len(answer_only) >= 4 else answer_tokens
 
-        min_overlap = 3 if len(signal) >= 8 else 2
-        use_indices = set()
-        for i, chunk in enumerate(chunks):
-            chunk_tokens = {
-                w.lower() for w in re.findall(r"\w+", chunk.content) if len(w) >= 4
-            }
-            if len(chunk_tokens & signal) >= min_overlap:
-                use_indices.add(i)
+        if signal:
+            min_overlap = 3 if len(signal) >= 8 else 2
+            for i, chunk in enumerate(chunks):
+                chunk_tokens = {
+                    w.lower() for w in re.findall(r"\w+", chunk.content) if len(w) >= 4
+                }
+                if len(chunk_tokens & signal) >= min_overlap:
+                    use_indices.add(i)
 
     citations = []
     for i in sorted(use_indices):
