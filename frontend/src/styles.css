@@ -700,14 +700,61 @@ html, body, #root {
   max-width: min(360px, calc(100vw - 24px));
   max-height: 60vh;
   overflow-y: auto;
-  padding: 8px 10px;
-  background: rgba(11, 18, 36, 0.98);
+  overscroll-behavior: contain;
+  padding: 10px 12px;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   z-index: 50;
   box-shadow: 0 10px 24px rgba(0,0,0,0.40);
   pointer-events: auto;
+
+  /* Subtle top/bottom fade as a scroll-affordance hint */
+  background-color: rgba(11,18,36,0.98);
+  background-image:
+    linear-gradient(rgba(11,18,36,0.98), rgba(11,18,36,0)),
+    linear-gradient(rgba(11,18,36,0), rgba(11,18,36,0.98)),
+    radial-gradient(farthest-side at 50% 0, rgba(0,0,0,0.30), transparent),
+    radial-gradient(farthest-side at 50% 100%, rgba(0,0,0,0.30), transparent);
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+  background-size: 100% 14px, 100% 14px, 100% 8px, 100% 8px;
+  background-position: top, bottom, top, bottom;
+
+  /* Thin custom scrollbar (Firefox) */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,175,220,0.25) transparent;
+}
+/* Thin custom scrollbar (WebKit / Chromium) */
+.srcCardPopover::-webkit-scrollbar{
+  width: 6px;
+}
+.srcCardPopover::-webkit-scrollbar-track{
+  background: transparent;
+  margin: 6px 0;
+}
+.srcCardPopover::-webkit-scrollbar-thumb{
+  background: rgba(148,175,220,0.22);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.srcCardPopover::-webkit-scrollbar-thumb:hover{
+  background: rgba(148,175,220,0.45);
+}
+:root[data-theme="light"] .srcCardPopover{
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#ffffff, rgba(255,255,255,0)),
+    linear-gradient(rgba(255,255,255,0), #ffffff),
+    radial-gradient(farthest-side at 50% 0, rgba(15,23,42,0.10), transparent),
+    radial-gradient(farthest-side at 50% 100%, rgba(15,23,42,0.10), transparent);
+  scrollbar-color: rgba(71,85,105,0.30) transparent;
+}
+:root[data-theme="light"] .srcCardPopover::-webkit-scrollbar-thumb{
+  background: rgba(71,85,105,0.25);
+}
+:root[data-theme="light"] .srcCardPopover::-webkit-scrollbar-thumb:hover{
+  background: rgba(71,85,105,0.50);
 }
 /* Invisible bridge so mouse can move from card to popover without dropping hover */
 .srcCardPopover::after{
